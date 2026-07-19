@@ -1,0 +1,5 @@
+(library
+ (name maestro_workspace)
+ (libraries core core_unix.signal_unix async maestro_workflow sha)
+ (preprocess
+  (pps ppx_jane)))
