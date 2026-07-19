@@ -1,0 +1,12 @@
+(library
+ (name maestro_orchestrator)
+ (libraries
+  core
+  async
+  jsonaf
+  maestro_workflow
+  maestro_tracker
+  maestro_workspace
+  maestro_codex)
+ (preprocess
+  (pps ppx_jane ppx_jsonaf_conv)))
