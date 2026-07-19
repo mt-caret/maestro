@@ -1,0 +1,13 @@
+(library
+ (name maestro_linear)
+ (libraries
+  core
+  async
+  jsonaf
+  cohttp
+  cohttp-async
+  uri
+  maestro_workflow
+  maestro_tracker)
+ (preprocess
+  (pps ppx_jane)))

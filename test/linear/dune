@@ -1,0 +1,16 @@
+(library
+ (name maestro_linear_test)
+ (libraries
+  core
+  async
+  jsonaf
+  maestro_workflow
+  maestro_tracker
+  maestro_linear
+  expect_test_helpers_core
+  expect_test_helpers_async)
+ ; See test/template/dune for why -source-tree-root is overridden.
+ (inline_tests
+  (flags -source-tree-root .))
+ (preprocess
+  (pps ppx_jane ppx_tydi)))
