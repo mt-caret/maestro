@@ -1,0 +1,5 @@
+(library
+ (name maestro_observability)
+ (libraries core async jsonaf maestro_orchestrator)
+ (preprocess
+  (pps ppx_jane ppx_jsonaf_conv)))

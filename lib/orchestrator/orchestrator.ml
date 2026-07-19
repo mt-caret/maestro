@@ -281,7 +281,7 @@ let integrate_update (state : State.t) ~issue_id ~(update : Update.t) =
         session_id
       ; turn_count
       ; last_event = Some update.event
-      ; last_message = Option.first_some (payload_method update) entry.last_message
+      ; last_message = Some (Humanizer.summarize update)
       ; last_timestamp = Some update.timestamp
       ; input_blocked
       ; tokens

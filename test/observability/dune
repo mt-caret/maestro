@@ -1,0 +1,17 @@
+(library
+ (name maestro_observability_test)
+ (libraries
+  core
+  async
+  jsonaf
+  maestro_tracker
+  maestro_codex
+  maestro_orchestrator
+  maestro_observability
+  expect_test_helpers_core
+  expect_test_helpers_async)
+ ; See test/template/dune for why -source-tree-root is overridden.
+ (inline_tests
+  (flags -source-tree-root .))
+ (preprocess
+  (pps ppx_jane ppx_tydi)))
