@@ -1,0 +1,19 @@
+(library
+ (name maestro_tui_test)
+ (libraries
+  core
+  async
+  jsonaf
+  bonsai
+  bonsai_term
+  bonsai_term_test
+  maestro_tracker
+  maestro_workflow
+  maestro_orchestrator
+  maestro_tui
+  expect_test_helpers_core)
+ ; See test/template/dune for why -source-tree-root is overridden.
+ (inline_tests
+  (flags -source-tree-root .))
+ (preprocess
+  (pps ppx_jane)))

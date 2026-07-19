@@ -1,0 +1,5 @@
+(library
+ (name maestro_tui)
+ (libraries core async bonsai bonsai_term maestro_orchestrator)
+ (preprocess
+  (pps ppx_jane)))
