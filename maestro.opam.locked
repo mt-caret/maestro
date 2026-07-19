@@ -36,7 +36,7 @@ depends: [
   "bonsai" {= "v0.18~preview.130.106+341"}
   "bonsai_concrete" {= "v0.18~preview.130.106+341"}
   "bonsai_term" {= "v0.18~preview.130.106+341"}
-  "bonsai_term_components" {= "v0.18~preview.130.106+341"}
+  "bonsai_term_components" {= "v0.18~preview.130.106+341" & with-test}
   "bonsai_term_test" {= "v0.18~preview.130.106+341" & with-test}
   "bonsai_test" {= "v0.18~preview.130.106+341" & with-test}
   "bos" {= "0.3.0"}
@@ -71,9 +71,9 @@ depends: [
   "either" {= "1.0.0"}
   "expect_test_helpers_async" {= "v0.18~preview.130.106+341" & with-test}
   "expect_test_helpers_base" {= "v0.18~preview.130.106+341"}
-  "expect_test_helpers_core" {= "v0.18~preview.130.106+341"}
+  "expect_test_helpers_core" {= "v0.18~preview.130.106+341" & with-test}
   "expectable" {= "v0.18~preview.130.106+341" & with-test}
-  "expectree" {= "v0.18~preview.130.106+341"}
+  "expectree" {= "v0.18~preview.130.106+341" & with-test}
   "faraday" {= "0.8.2"}
   "fieldslib" {= "v0.18~preview.130.106+341"}
   "fix" {= "20250919"}
@@ -92,7 +92,7 @@ depends: [
   "ipaddr" {= "5.6.2"}
   "ipaddr-sexp" {= "5.6.2"}
   "jane-street-headers" {= "v0.18~preview.130.106+341"}
-  "jane_term_types" {= "v0.18~preview.130.106+341"}
+  "jane_term_types" {= "v0.18~preview.130.106+341" & with-test}
   "janestreet_lru_cache" {= "v0.18~preview.130.106+341"}
   "js_of_ocaml" {= "6.3.2+ox"}
   "js_of_ocaml-compiler" {= "6.3.2+ox"}
@@ -203,9 +203,9 @@ depends: [
   "oxcaml-yojson-patches" {= "enabled"}
   "oxcaml-zarith-patches" {= "enabled"}
   "parsexp" {= "v0.18~preview.130.106+341"}
-  "patdiff" {= "v0.18~preview.130.106+341"}
-  "patience_diff" {= "v0.18~preview.130.106+341"}
-  "pending_or_error" {= "v0.18~preview.130.106+341"}
+  "patdiff" {= "v0.18~preview.130.106+341" & with-test}
+  "patience_diff" {= "v0.18~preview.130.106+341" & with-test}
+  "pending_or_error" {= "v0.18~preview.130.106+341" & with-test}
   "pipe_with_writer_error" {= "v0.18~preview.130.106+341"}
   "portable" {= "v0.18~preview.130.106+341"}
   "portable_lockfree_htbl" {= "v0.18~preview.130.106+341"}
@@ -219,7 +219,7 @@ depends: [
   "ppx_compare" {= "v0.18~preview.130.106+341"}
   "ppx_custom_printf" {= "v0.18~preview.130.106+341"}
   "ppx_debug_assert" {= "v0.18~preview.130.106+341"}
-  "ppx_delta_types" {= "v0.18~preview.130.106+341"}
+  "ppx_delta_types" {= "v0.18~preview.130.106+341" & with-test}
   "ppx_derivers" {= "1.2.1"}
   "ppx_diff" {= "v0.18~preview.130.106+341"}
   "ppx_disable_unused_warnings" {= "v0.18~preview.130.106+341"}
@@ -227,7 +227,7 @@ depends: [
   "ppx_expect" {= "v0.18~preview.130.106+341"}
   "ppx_fields_conv" {= "v0.18~preview.130.106+341"}
   "ppx_fixed_literal" {= "v0.18~preview.130.106+341"}
-  "ppx_for_loop" {= "v0.18~preview.130.106+341"}
+  "ppx_for_loop" {= "v0.18~preview.130.106+341" & with-test}
   "ppx_fuelproof" {= "v0.18~preview.130.106+341"}
   "ppx_globalize" {= "v0.18~preview.130.106+341"}
   "ppx_hash" {= "v0.18~preview.130.106+341"}
@@ -257,7 +257,7 @@ depends: [
   "ppx_string" {= "v0.18~preview.130.106+341"}
   "ppx_string_conv" {= "v0.18~preview.130.106+341"}
   "ppx_template" {= "v0.18~preview.130.106+341"}
-  "ppx_tydi" {= "v0.18~preview.130.106+341"}
+  "ppx_tydi" {= "v0.18~preview.130.106+341" & with-test}
   "ppx_typed_fields" {= "v0.18~preview.130.106+341"}
   "ppx_typerep_conv" {= "v0.18~preview.130.106+341"}
   "ppx_var_name" {= "v0.18~preview.130.106+341"}
@@ -268,7 +268,7 @@ depends: [
   "ppxlib_jane" {= "v0.18~preview.130.106+341"}
   "protocol_version_header" {= "v0.18~preview.130.106+341"}
   "re" {= "1.14.0+ox"}
-  "react" {= "1.2.2"}
+  "react" {= "1.2.2" & with-test}
   "record_builder" {= "v0.18~preview.130.106+341"}
   "result" {= "1.5"}
   "rresult" {= "0.7.0"}
@@ -290,7 +290,7 @@ depends: [
   "textutils" {= "v0.18~preview.130.106+341"}
   "textutils_kernel" {= "v0.18~preview.130.106+341"}
   "time_now" {= "v0.18~preview.130.106+341"}
-  "tmux" {= "v0.18~preview.130.106+341"}
+  "tmux" {= "v0.18~preview.130.106+341" & with-test}
   "topkg" {= "1.1.1+ox"}
   "typerep" {= "v0.18~preview.130.106+341"}
   "tyxml" {= "4.6.0"}
@@ -306,7 +306,7 @@ depends: [
   "uuseg" {= "17.0.0"}
   "uutf" {= "1.0.4+ox"}
   "variantslib" {= "v0.18~preview.130.106+341"}
-  "vec" {= "v0.18~preview.130.106+341"}
+  "vec" {= "v0.18~preview.130.106+341" & with-test}
   "virtual_dom" {= "v0.18~preview.130.106+341"}
   "yaml" {= "3.2.0"}
   "yojson" {= "2.2.2+ox"}

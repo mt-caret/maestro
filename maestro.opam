@@ -17,13 +17,16 @@ depends: [
   "jsonaf"
   "ppx_jsonaf_conv"
   "yaml"
+  "cohttp"
   "cohttp-async"
   "async_ssl"
+  "uri"
   "sha"
   "bonsai"
   "bonsai_term"
-  "bonsai_term_components"
+  "ppx_tydi" {with-test}
   "bonsai_term_test" {with-test}
+  "expect_test_helpers_core" {with-test}
   "expect_test_helpers_async" {with-test}
   "odoc" {with-doc}
 ]
