@@ -68,6 +68,7 @@ let run ~workflow ~adapter ~attempt =
     ~attempt
     ~on_update:(fun (_ : Update.t) -> ())
     ~on_runtime_info:(fun ~workspace_path:(_ : string) -> ())
+    ()
 ;;
 
 let show_result ~scrub result =

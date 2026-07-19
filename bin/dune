@@ -2,6 +2,6 @@
  (name main)
  (public_name maestro)
  (package maestro)
- (libraries core)
+ (libraries core async maestro core_unix.command_unix)
  (preprocess
   (pps ppx_jane)))

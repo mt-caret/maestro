@@ -59,7 +59,17 @@ let run_turns
   turn ~turn_number:1 ~issue
 ;;
 
-let run ~config ~workflow ~adapter ~issue ~attempt ~on_update ~on_runtime_info =
+let run
+  ?(stop = Deferred.never ())
+  ~config
+  ~workflow
+  ~adapter
+  ~issue
+  ~attempt
+  ~on_update
+  ~on_runtime_info
+  ()
+  =
   let%tydi { Config.hooks; _ } = config in
   match%bind Workspace.create_for_issue ~config ~identifier:issue.Issue.identifier with
   | Error _ as error -> return error
@@ -76,7 +86,14 @@ let run ~config ~workflow ~adapter ~issue ~attempt ~on_update ~on_runtime_info =
       match%bind App_server.start_session ~config ~workspace ~adapter ~on_update with
       | Error _ as error -> return error
       | Ok session ->
-        let%bind result = run_turns ~config ~workflow ~adapter ~issue ~attempt ~session in
+        (* Race the turn loop against an external stop (reconciliation terminating this
+           run): stopping the session kills the subprocess, unwedging any in-flight turn. *)
+        let%bind result =
+          Deferred.any
+            [ run_turns ~config ~workflow ~adapter ~issue ~attempt ~session
+            ; (stop >>| fun () -> Or_error.error_s [%message "stopped_by_orchestrator"])
+            ]
+        in
         let%map () = App_server.stop_session session in
         result
     in

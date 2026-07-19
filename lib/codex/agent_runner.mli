@@ -18,12 +18,16 @@ open! Core
 open! Async
 open Maestro_tracker
 
+(** [stop], when determined, stops the live session (killing the subprocess) and ends the
+    run — used by the orchestrator to terminate a worker on reconciliation. *)
 val run
-  :  config:Maestro_workflow.Config.t
+  :  ?stop:unit Deferred.t
+  -> config:Maestro_workflow.Config.t
   -> workflow:Maestro_workflow.Workflow.Loaded.t
   -> adapter:Adapter.t
   -> issue:Issue.t
   -> attempt:int option
   -> on_update:(Update.t -> unit)
   -> on_runtime_info:(workspace_path:string -> unit)
+  -> unit
   -> unit Deferred.Or_error.t
