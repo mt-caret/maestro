@@ -46,6 +46,16 @@ let run ~workflow_path ~logs_root ~port ?(memory_issues = fun () -> []) () =
       Log_setup.configure_stderr ();
       return ()
   in
+  (* Resolve the workflow path to absolute so a relative workspace.root (which resolves
+     against the WORKFLOW.md directory) normalizes to an absolute path before use, as SPEC
+     §5.3.3 requires. *)
+  let%bind workflow_path =
+    match Filename.is_absolute workflow_path with
+    | true -> return workflow_path
+    | false ->
+      let%map cwd = Unix.getcwd () in
+      Filename.concat cwd workflow_path
+  in
   match%bind Workflow_store.create ~path:workflow_path ~getenv:Sys.getenv with
   | Error _ as error -> return error
   | Ok workflow_store ->

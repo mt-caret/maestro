@@ -54,6 +54,7 @@ let%expect_test "state_payload: generated_at, counts, rows, totals" =
       ~config
       ~adapter:(adapter issues)
       ~now
+      ~config_valid:true
       (Tick { token = None })
   in
   let snapshot = Orchestrator.to_snapshot state ~config ~now in
@@ -110,6 +111,7 @@ let%expect_test "issue_payload: found running, and 404 (None) for unknown" =
       ~config
       ~adapter:(adapter issues)
       ~now
+      ~config_valid:true
       (Tick { token = None })
   in
   let snapshot = Orchestrator.to_snapshot state ~config ~now in

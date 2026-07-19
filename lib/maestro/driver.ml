@@ -12,6 +12,8 @@ type t =
   ; mutable config : Config.t
   ; mutable workflow : Workflow.Loaded.t
   ; mutable adapter : Maestro_tracker.Adapter.t
+  ; mutable config_valid : bool
+  (** Whether the on-disk WORKFLOW.md currently loads and its adapter builds. *)
   ; worker_stops : unit Ivar.t String.Table.t
   (** issue_id -> stop signal for its worker *)
   ; on_change : (unit -> unit) Bag.t
@@ -20,17 +22,33 @@ type t =
 
 let notify_observers t = Bag.iter t.on_change ~f:(fun f -> f ())
 
-(* Re-read the current workflow/config each cycle so reloads take effect (SPEC §6.2). A
-   config that fails to build an adapter keeps the last good adapter and is surfaced by
-   the tick's own preflight. *)
+(* Re-read the workflow each cycle so reloads take effect (SPEC §6.2). Two things happen
+   atomically: [force_reload] reports whether the on-disk file currently loads (→
+   [config_valid], which gates new dispatch per §5.5/§6.3), and the
+   config/workflow/adapter triple is swapped only when a fresh load AND its adapter both
+   succeed — otherwise the whole last-known-good triple is kept so config and adapter
+   never disagree. *)
 let refresh_config t =
-  let%map loaded = Workflow_store.current t.workflow_store in
-  t.workflow <- loaded;
-  t.config <- loaded.config;
-  match t.make_adapter loaded.config.tracker with
-  | Ok adapter -> t.adapter <- adapter
+  match%map Workflow_store.force_reload t.workflow_store with
   | Error error ->
-    [%log.error "keeping last adapter; rebuild failed" ~_:(error : Error.t)]
+    (* The file is currently unreadable/unparsable: keep last-known-good, block dispatch. *)
+    [%log.error
+      "workflow file invalid; keeping last known good configuration and blocking dispatch"
+        ~_:(error : Error.t)];
+    t.config_valid <- false
+  | Ok loaded ->
+    (match t.make_adapter loaded.config.tracker with
+     | Ok adapter ->
+       t.workflow <- loaded;
+       t.config <- loaded.config;
+       t.adapter <- adapter;
+       t.config_valid <- true
+     | Error error ->
+       [%log.error
+         "tracker config unusable; keeping last known good configuration and blocking \
+          dispatch"
+           ~_:(error : Error.t)];
+       t.config_valid <- false)
 ;;
 
 let post t event =
@@ -40,6 +58,11 @@ let post t event =
 ;;
 
 let spawn_worker t ~(issue : Maestro_tracker.Issue.t) ~attempt ~run_token =
+  [%log.info
+    "dispatching issue"
+      ~issue_id:issue.id
+      ~issue_identifier:issue.identifier
+      (attempt : int option)];
   let stop = Ivar.create () in
   Hashtbl.set t.worker_stops ~key:issue.id ~data:stop;
   (* Snapshot config/workflow/adapter for the whole worker lifetime (SPEC §10.5). *)
@@ -63,8 +86,17 @@ let spawn_worker t ~(issue : Maestro_tracker.Issue.t) ~attempt ~run_token =
      Hashtbl.remove t.worker_stops issue.id;
      let outcome =
        match result with
-       | Ok () -> Worker_outcome.Completed
-       | Error error -> Worker_outcome.Failed (Error.to_string_hum error)
+       | Ok () ->
+         [%log.info
+           "worker completed" ~issue_id:issue.id ~issue_identifier:issue.identifier];
+         Worker_outcome.Completed
+       | Error error ->
+         [%log.info
+           "worker failed"
+             ~issue_id:issue.id
+             ~issue_identifier:issue.identifier
+             ~reason:(Error.to_string_hum error : string)];
+         Worker_outcome.Failed (Error.to_string_hum error)
      in
      post t (Worker_exited { issue_id = issue.id; run_token; outcome });
      return ())
@@ -107,6 +139,7 @@ let process_event t event =
       ~config:t.config
       ~adapter:t.adapter
       ~now:(Time_ns.now ())
+      ~config_valid:t.config_valid
       event
   in
   t.state <- state;
@@ -145,6 +178,7 @@ let start ~workflow_store ~make_adapter =
       ; config = workflow.config
       ; workflow
       ; adapter
+      ; config_valid = true
       ; worker_stops = String.Table.create ()
       ; on_change = Bag.create ()
       ; stopped = Ivar.create ()

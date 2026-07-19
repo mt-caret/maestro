@@ -267,7 +267,13 @@ Tracker-error tolerance (SPEC §11.4, §8.5): candidate-fetch failure ⇒ log an
 this tick only; a failed by-ids reconciliation refresh ⇒ keep **all** running and blocked entries
 untouched and retry next tick (never conflate a fetch *error* with an *empty/partial result* — only
 ids missing from a successful refresh are terminated); startup terminal-sweep fetch failure ⇒
-warn and continue startup. Worker exit while input-blocked (last event turn_input_required /
+warn and continue startup.
+
+Config-validity gating (SPEC §5.5, §6.3): `handle` takes `~config_valid`, the driver's verdict on
+whether the on-disk WORKFLOW.md currently loads *and* its adapter builds (computed via
+`Workflow_store.force_reload` each event). When false, a tick still reconciles but skips new
+dispatch; the config/workflow/adapter triple is swapped only when a fresh load and adapter build
+both succeed, so last-known-good stays internally consistent. Worker exit while input-blocked (last event turn_input_required /
 approval_required / MCP elicitation) ⇒ move to `blocked` (claim retained) instead of retrying;
 blocked issues are reconciled each tick (terminal ⇒ cleanup + release; unroutable/other ⇒ release;
 active ⇒ refresh in place). Restart clears blocked (in-memory by design, SPEC §14.3).

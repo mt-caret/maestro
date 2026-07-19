@@ -701,12 +701,32 @@ let schedule_next_tick (state : State.t) ~(config : Config.t) ~now =
   , [ Effect.Schedule_tick { delay; token } ] )
 ;;
 
-let preflight_ok ~(config : Config.t) ~(adapter : Adapter.t) =
-  (not (String.is_empty (String.strip config.Config.codex.command)))
-  && Or_error.is_ok (adapter.validate_config ())
+(* Dispatch preflight (SPEC §6.3): the caller has already confirmed the workflow file is
+   currently loadable ([config_valid]); here we also require a non-empty codex command and
+   an adapter that accepts its provider config, logging the specific reason on failure. *)
+let preflight_ok ~(config : Config.t) ~(adapter : Adapter.t) ~config_valid =
+  match config_valid with
+  | false -> false
+  | true ->
+    (match String.is_empty (String.strip config.Config.codex.command) with
+     | true ->
+       [%log.error "dispatch preflight failed" ~reason:"codex.command is empty"];
+       false
+     | false ->
+       (match adapter.validate_config () with
+        | Ok () -> true
+        | Error error ->
+          [%log.error "dispatch preflight failed" ~_:(error : Error.t)];
+          false))
 ;;
 
-let handle_tick (state : State.t) ~(config : Config.t) ~(adapter : Adapter.t) ~now =
+let handle_tick
+  (state : State.t)
+  ~(config : Config.t)
+  ~(adapter : Adapter.t)
+  ~now
+  ~config_valid
+  =
   (* Reconciliation is unconditional (SPEC §8.5): stall detection, then a tracker refresh
      that keeps all workers/blocked entries on fetch failure. *)
   let state, stall_effects = reconcile_stalled state ~config ~now in
@@ -734,10 +754,8 @@ let handle_tick (state : State.t) ~(config : Config.t) ~(adapter : Adapter.t) ~n
   (* Dispatch preflight (SPEC §6.3): skip new dispatch on invalid config, but keep
      reconciliation. *)
   let%map state, dispatch_effects =
-    match preflight_ok ~config ~adapter with
-    | false ->
-      [%log.error "dispatch preflight failed; skipping dispatch this tick"];
-      return (state, [])
+    match preflight_ok ~config ~adapter ~config_valid with
+    | false -> return (state, [])
     | true ->
       let active = Option.value config.tracker.active_states ~default:[] in
       (match%map adapter.fetch_issues_by_states active with
@@ -833,13 +851,20 @@ let handle_retry_due
           else release_claim state ~issue_id, [ Effect.Notify ]))
 ;;
 
-let handle (state : State.t) ~(config : Config.t) ~adapter ~now (event : Event.t) =
+let handle
+  (state : State.t)
+  ~(config : Config.t)
+  ~adapter
+  ~now
+  ~config_valid
+  (event : Event.t)
+  =
   match event with
   | Tick { token } ->
     (match token, state.poll.tick_token with
      | Some token, Some current when not (Token.equal token current) ->
        return (state, []) (* Stale periodic tick. *)
-     | _ -> handle_tick state ~config ~adapter ~now)
+     | _ -> handle_tick state ~config ~adapter ~now ~config_valid)
   | Worker_runtime_info { issue_id; workspace_path } ->
     let state =
       match Map.find state.running issue_id with

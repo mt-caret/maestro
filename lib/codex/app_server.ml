@@ -543,7 +543,19 @@ let run_turn (session : Session.t) ~prompt ~(issue : Issue.t) =
                  emit Notification ~payload:json;
                  loop ()))
        in
-       loop ())
+       [%log.info "codex turn started" ~session_id ~issue_identifier:issue.identifier];
+       (match%map loop () with
+        | Ok () as ok ->
+          [%log.info "codex turn completed" ~session_id];
+          ok
+        | Error error as err ->
+          (* Surface any error-terminated turn as an observability event (SPEC §10.4). *)
+          emit Turn_ended_with_error ~detail:(Error.to_string_hum error);
+          [%log.info
+            "codex turn ended with error"
+              ~session_id
+              ~reason:(Error.to_string_hum error : string)];
+          err))
 ;;
 
 let stop_session (session : Session.t) =

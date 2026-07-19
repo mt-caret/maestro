@@ -204,6 +204,12 @@ let%expect_test "default (strict) policy hard-fails approvals instead of hanging
       turn: error approval_required
       (Session_started (detail ()))
       (Approval_required (detail ()))
+      (Turn_ended_with_error
+       (detail
+        ( "(approval_required\
+         \n (Object\
+         \n  ((id (Number 90)) (method (String item/fileChange/requestApproval))\
+         \n   (params (Object ())))))")))
       |}];
     return ())
 ;;
@@ -283,6 +289,21 @@ let%expect_test "requestUserInput: approve-ish label when auto; canned answer ot
       turn: error turn_input_required
       (Session_started (detail ()))
       (Turn_input_required (detail ()))
+      (Turn_ended_with_error
+       (detail
+        ( "(turn_input_required\
+         \n (Object\
+         \n  ((id (Number 80)) (method (String item/tool/requestUserInput))\
+         \n   (params\
+         \n    (Object\
+         \n     ((questions\
+         \n       (Array\
+         \n        ((Object\
+         \n          ((header (String h)) (question (String Allow?))\
+         \n           (options\
+         \n            (Array\
+         \n             ((Object ((label (String \"Approve this Session\"))))\
+         \n              (Object ((label (String Deny))))))))))))))))))")))
       |}];
     return ())
 ;;
@@ -335,6 +356,12 @@ let%expect_test "dynamic tool calls execute host-side and never stall; MCP elici
       turn: error turn_input_required
       (Session_started (detail ()))
       (Turn_input_required (detail ()))
+      (Turn_ended_with_error
+       (detail
+        ( "(turn_input_required\
+         \n (Object\
+         \n  ((id (Number 60)) (method (String mcpServer/elicitation/request))\
+         \n   (params (Object ())))))")))
       |}];
     return ())
 ;;
@@ -372,9 +399,11 @@ let%expect_test "subprocess exit mid-turn is port_exit; slow startup is response
         let%map result = App_server.run_turn session ~prompt:"p" ~issue:test_issue in
         show_turn_result result)
     in
-    [%expect {|
+    [%expect
+      {|
       turn: error port_exit
       (Session_started (detail ()))
+      (Turn_ended_with_error (detail (port_exit)))
       |}];
     (* A server that never answers initialize trips the read timeout. *)
     let%bind () = Writer.save (dir ^/ "slow.sh") ~contents:"sleep 30\n" in

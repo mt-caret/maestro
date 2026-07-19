@@ -275,6 +275,20 @@ p|}
   return ()
 ;;
 
+let%expect_test "config_valid=false blocks new dispatch but still reconciles" =
+  let t = create () in
+  t.issues <- [ issue ~id:"a" ~identifier:"MT-1" () ];
+  (* A currently-invalid workflow file: the tick reconciles but must not dispatch. *)
+  let%bind effects = feed ~config_valid:false t (Tick { token = None }) in
+  print_s [%message "" ~spawned:(dispatched_identifiers (spawns effects) : string list)];
+  [%expect {| (spawned ()) |}];
+  (* Once valid again, the same issue dispatches. *)
+  let%bind spawned = poll t in
+  print_s [%sexp (dispatched_identifiers spawned : string list)];
+  [%expect {| (MT-1) |}];
+  return ()
+;;
+
 let%expect_test "stall detection kills the worker and schedules a retry" =
   let t =
     create

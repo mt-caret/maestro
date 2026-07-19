@@ -83,12 +83,16 @@ end
 
 (** Fold one event into the state, using [config] (the current effective workflow config)
     and [adapter] for tracker reads and [now] for all time arithmetic. Tracker-read
-    failures are tolerated per SPEC §11.4 (skip dispatch / keep workers). *)
+    failures are tolerated per SPEC §11.4 (skip dispatch / keep workers). [config_valid]
+    is the caller's verdict on whether the on-disk WORKFLOW.md currently loads and its
+    adapter builds; when [false], a tick still reconciles but skips new dispatch (SPEC
+    §5.5, §6.3). *)
 val handle
   :  State.t
   -> config:Config.t
   -> adapter:Adapter.t
   -> now:Time_ns.t
+  -> config_valid:bool
   -> Event.t
   -> (State.t * Effect.t list) Deferred.t
 

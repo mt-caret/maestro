@@ -99,9 +99,15 @@ let interpret t effects =
     | Spawn_worker _ | Stop_worker _ | Schedule_retry _ | Schedule_tick _ | Notify -> ())
 ;;
 
-let feed t event =
+let feed ?(config_valid = true) t event =
   let%map state, effects =
-    Orchestrator.handle t.state ~config:t.config ~adapter:t.adapter ~now:t.now event
+    Orchestrator.handle
+      t.state
+      ~config:t.config
+      ~adapter:t.adapter
+      ~now:t.now
+      ~config_valid
+      event
   in
   t.state <- state;
   interpret t effects;

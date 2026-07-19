@@ -48,6 +48,7 @@ let snapshot_with_one () =
       ~config
       ~adapter
       ~now:Time_ns.epoch
+      ~config_valid:true
       (Orchestrator.Event.Tick { token = None })
   in
   Orchestrator.to_snapshot state ~config ~now:Time_ns.epoch
