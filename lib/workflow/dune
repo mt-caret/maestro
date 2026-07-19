@@ -1,0 +1,5 @@
+(library
+ (name maestro_workflow)
+ (libraries core async jsonaf yaml)
+ (preprocess
+  (pps ppx_jane)))
