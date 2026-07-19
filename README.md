@@ -80,6 +80,26 @@ When enabled, under `/api/v1`:
 - `POST /api/v1/refresh` — queue an immediate poll + reconcile cycle.
 - `GET /` — a self-contained HTML dashboard that polls the JSON API.
 
+## Codex sandbox and timeouts (operational notes)
+
+Verified end-to-end against real Linear + a real `codex` binary. Two things to configure:
+
+- **Startup timeout.** Real `codex app-server` cold start (model/auth warmup) can exceed
+  the 5 s `codex.read_timeout_ms` default and trip a first-attempt `response_timeout`;
+  maestro retries with backoff, but set `read_timeout_ms: 30000` to avoid the wasted
+  attempt.
+- **Sandbox.** `codex.turn_sandbox_policy` is passed to codex verbatim. An explicit
+  `workspaceWrite` policy must list `writableRoots` (codex does not add the workspace to an
+  explicit policy) — or omit `turn_sandbox_policy` entirely to use maestro's default, which
+  roots `writableRoots` at the per-issue workspace. In containers or CI where codex's OS
+  sandbox (landlock/seccomp) is unavailable, file writes fail even inside `writableRoots`;
+  there, use `thread_sandbox: danger-full-access` and
+  `turn_sandbox_policy: { type: dangerFullAccess }`, as the reference implementation does
+  for its Docker workers.
+
+The `linear_graphql` tool runs host-side with maestro's credential, so tracker writes
+(state transitions, comments) work regardless of the codex sandbox.
+
 ## Tracker adapters
 
 ### `memory`

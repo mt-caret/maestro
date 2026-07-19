@@ -39,9 +39,22 @@ codex:
   # Omit for the strict default, which fails a run that needs approval.
   approval_policy: never
   thread_sandbox: workspace-write
+  # Real codex app-server cold start (model/auth warmup) can exceed the 5s default; raise
+  # this so the first turn's startup handshake isn't spuriously timed out (maestro retries
+  # either way, but a higher value avoids a wasted first attempt).
+  read_timeout_ms: 30000
+  # Sandbox policy is passed to codex verbatim. When set as an object of type
+  # workspaceWrite you MUST list writableRoots (codex won't auto-add the workspace to an
+  # explicit policy) — or simply omit turn_sandbox_policy to get maestro's default, which
+  # roots writableRoots at the per-issue workspace.
   turn_sandbox_policy:
     type: workspaceWrite
     networkAccess: true
+    writableRoots: [.]
+  # In containers/CI where codex's OS sandbox (landlock/seccomp) is unavailable, file
+  # writes fail even inside writableRoots. There, use full access instead:
+  #   thread_sandbox: danger-full-access
+  #   turn_sandbox_policy: { type: dangerFullAccess }
 
 # Optional HTTP dashboard + JSON API (also enable with --port). Loopback by default.
 # server:
