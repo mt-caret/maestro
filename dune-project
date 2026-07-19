@@ -1,0 +1,36 @@
+(lang dune 3.17)
+
+(name maestro)
+
+(generate_opam_files true)
+
+(authors "Masayuki Takeda")
+
+(maintainers "mtakeda@oeconomia.jp")
+
+(license Apache-2.0)
+
+(package
+ (name maestro)
+ (synopsis "OxCaml implementation of the Symphony coding-agent orchestration service")
+ (description
+  "A daemon that polls an issue tracker, creates isolated per-issue workspaces, and drives Codex app-server coding-agent sessions, per the Symphony specification (github.com/openai/symphony). Includes a Linear tracker adapter, an HTTP observability API, and an interactive bonsai_term terminal dashboard.")
+ (depends
+  (ocaml
+   (>= 5.2.0))
+  dune
+  core
+  core_unix
+  async
+  ppx_jane
+  jsonaf
+  ppx_jsonaf_conv
+  yaml
+  cohttp-async
+  async_ssl
+  sha
+  bonsai
+  bonsai_term
+  bonsai_term_components
+  (bonsai_term_test :with-test)
+  (expect_test_helpers_async :with-test)))
