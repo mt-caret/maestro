@@ -1,0 +1,11 @@
+(library
+ (name maestro_template_test)
+ (libraries core jsonaf maestro_template expect_test_helpers_core)
+ ; -source-tree-root . overrides the ppx_inline_test backend's
+ ; "-source-tree-root %{workspace_root}" (last flag wins): the preview
+ ; ppx_expect_runtime resolves corrected files as <root>/<basename>, which only
+ ; works when the root is the directory containing the test sources.
+ (inline_tests
+  (flags -source-tree-root .))
+ (preprocess
+  (pps ppx_jane)))

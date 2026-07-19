@@ -1,0 +1,7 @@
+(executable
+ (name main)
+ (public_name maestro)
+ (package maestro)
+ (libraries core)
+ (preprocess
+  (pps ppx_jane)))
