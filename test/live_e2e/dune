@@ -1,0 +1,15 @@
+(library
+ (name maestro_live_e2e)
+ (libraries
+  core
+  async
+  jsonaf
+  maestro_workflow
+  maestro_tracker
+  maestro_linear
+  maestro_codex)
+ ; See test/template/dune for why -source-tree-root is overridden.
+ (inline_tests
+  (flags -source-tree-root .))
+ (preprocess
+  (pps ppx_jane ppx_tydi)))
