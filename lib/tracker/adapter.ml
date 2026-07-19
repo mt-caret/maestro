@@ -1,21 +1,14 @@
 open! Core
 open! Async
+open! Jsonaf.Export
 
 module Tool_result = struct
   type t =
     { success : bool
     ; output : string
-    ; content_items : Jsonaf.t list
+    ; content_items : Jsonaf.t list [@key "contentItems"]
     }
-  [@@deriving sexp_of]
-
-  let to_jsonaf { success; output; content_items } =
-    `Object
-      [ ("success", if success then `True else `False)
-      ; "output", `String output
-      ; "contentItems", `Array content_items
-      ]
-  ;;
+  [@@deriving sexp_of, jsonaf_of]
 
   let of_error_message ?(extra = []) message =
     let output =

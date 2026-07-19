@@ -11,17 +11,15 @@ open! Async
 
 module Tool_result : sig
   (** Result of a provider-native dynamic tool call, translated verbatim onto the
-      app-server protocol. [output] is a JSON-encoded string; [content_items] is the
-      protocol's [contentItems] list. Failures are values, not errors — the turn always
-      continues (SPEC §10.5). *)
+      app-server protocol via [jsonaf_of_t]. [output] is a JSON-encoded string;
+      [content_items] serializes to the protocol's [contentItems] list. Failures are
+      values, not errors — the turn always continues (SPEC §10.5). *)
   type t =
     { success : bool
     ; output : string
-    ; content_items : Jsonaf.t list
+    ; content_items : Jsonaf.t list [@key "contentItems"]
     }
-  [@@deriving sexp_of]
-
-  val to_jsonaf : t -> Jsonaf.t
+  [@@deriving sexp_of, jsonaf_of]
 
   (** [of_error_message ?extra message] — the conventional failure envelope: output is
       [{"error":{"message":<message>, ...extra}}] pretty-printed, mirrored into one

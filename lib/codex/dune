@@ -1,0 +1,14 @@
+(library
+ (name maestro_codex)
+ (libraries
+  core
+  core_unix
+  core_unix.signal_unix
+  async
+  jsonaf
+  maestro_template
+  maestro_workflow
+  maestro_workspace
+  maestro_tracker)
+ (preprocess
+  (pps ppx_jane ppx_jsonaf_conv)))
