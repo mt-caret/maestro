@@ -1,7 +1,17 @@
 (executable
  (name main)
+ (modules main)
  (public_name maestro)
  (package maestro)
  (libraries core async maestro core_unix.command_unix)
+ (preprocess
+  (pps ppx_jane)))
+
+(executable
+ (name mcp_proxy)
+ (modules mcp_proxy)
+ (public_name maestro-mcp-proxy)
+ (package maestro)
+ (libraries core async jsonaf)
  (preprocess
   (pps ppx_jane)))

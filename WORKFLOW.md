@@ -46,6 +46,7 @@ hooks:
     git fetch --prune origin || true
 
 agent:
+  backend: codex
   # Builds are heavy; keep concurrency modest.
   max_concurrent_agents: 2
   max_turns: 20
