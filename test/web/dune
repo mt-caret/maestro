@@ -1,0 +1,17 @@
+(library
+ (name maestro_web_test)
+ (libraries
+  core
+  bonsai
+  bonsai_web
+  bonsai_web_test
+  maestro_snapshot
+  maestro_web)
+ (inline_tests
+  (modes js)
+  (flags -source-tree-root .))
+ (js_of_ocaml
+  (flags
+   (:standard --effects=cps)))
+ (preprocess
+  (pps ppx_jane bonsai.ppx_bonsai js_of_ocaml-ppx)))

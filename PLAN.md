@@ -51,9 +51,12 @@ lib/
   codex/                app-server protocol client
   orchestrator/         scheduling state machine
   observability/        log setup, event humanizer, snapshot presenter (JSON)
+  snapshot/             shared snapshot protocol types and JSON converters
   http/                 cohttp-async server (api/v1 + dashboard page)
+  web/                  bonsai_web dashboard library
   tui/                  bonsai_term app
   maestro/              wiring: startup sequence, CLI command
+bin/web/                 js_of_ocaml dashboard executable
 test/                   per-library expect tests + fixtures (fake codex scripts, workflows)
 ```
 

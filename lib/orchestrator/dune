@@ -4,6 +4,7 @@
   core
   async
   jsonaf
+  maestro_snapshot
   maestro_workflow
   maestro_tracker
   maestro_workspace

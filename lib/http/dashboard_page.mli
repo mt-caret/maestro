@@ -1,6 +1,7 @@
-(** The self-contained HTML dashboard served at [/] — inline CSS and JS that poll
-    [/api/v1/state], with no external asset dependencies (SPEC §13.7.1). *)
+(** The self-contained Bonsai dashboard assets served from the maestro binary (SPEC
+    §13.7.1). *)
 
 open! Core
 
 val html : string
+val javascript_gzip : string
