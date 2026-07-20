@@ -94,6 +94,7 @@ let%expect_test "endpoints, methods, and errors" =
     Http_server.start
       ~host:"127.0.0.1"
       ~port:0
+      ~logs_root:"/tmp/maestro-http-test"
       ~snapshot:snapshot_with_one
       ~request_refresh:(fun () ->
         incr refresh_calls;
@@ -167,6 +168,7 @@ let%expect_test "refresh returns 503 when the orchestrator is unavailable" =
     Http_server.start
       ~host:"127.0.0.1"
       ~port:0
+      ~logs_root:"/tmp/maestro-http-test"
       ~snapshot:snapshot_with_one
       ~request_refresh:(fun () -> return Http_server.Refresh_result.Unavailable)
     >>| ok_exn

@@ -61,6 +61,7 @@ let run_turns
 
 let run
   ?(stop = Deferred.never ())
+  ?session_log_dir
   ~config
   ~workflow
   ~adapter
@@ -83,7 +84,9 @@ let run
         | Some script ->
           Hook.run ~name:"before_run" ~script ~workspace ~timeout:hooks.timeout
       in
-      match%bind App_server.start_session ~config ~workspace ~adapter ~on_update with
+      match%bind
+        App_server.start_session ~config ~workspace ~session_log_dir ~adapter ~on_update
+      with
       | Error _ as error -> return error
       | Ok session ->
         (* Race the turn loop against an external stop (reconciliation terminating this

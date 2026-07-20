@@ -39,10 +39,57 @@ module Session = struct
     ; turn_sandbox_policy : Jsonaf.t
     ; on_update : Update.t -> unit
     ; mutable last_session_id : string option
+    ; session_log : Writer.t option
     }
 
   let thread_id t = t.thread_id
   let pid t = Process.pid t.process
+end
+
+module Session_log = struct
+  let retain = 10
+
+  let write writer stream line =
+    Option.iter writer ~f:(fun writer ->
+      ignore
+        (Option.try_with (fun () ->
+           if (not (Writer.is_closed writer)) && Writer.bytes_to_write writer < 1_000_000
+           then Writer.write_line writer [%string "%{stream}\t%{line}"])
+         : unit option))
+  ;;
+
+  let create ~dir ~pid =
+    Monitor.try_with ~run:`Schedule (fun () ->
+      let%bind () = Unix.mkdir ~p:() dir in
+      let%bind entries = Sys.readdir dir in
+      let logs =
+        Array.to_list entries
+        |> List.filter ~f:(String.is_suffix ~suffix:".log")
+        |> List.sort ~compare:String.compare
+      in
+      let stale = List.take logs (Int.max 0 (List.length logs - (retain - 1))) in
+      let%bind () =
+        Deferred.List.iter stale ~how:`Sequential ~f:(fun name ->
+          Monitor.try_with (fun () -> Unix.unlink (Filename.concat dir name)) >>| ignore)
+      in
+      let stamp = Time_ns.now () |> Time_ns.to_int_ns_since_epoch |> Int.to_string in
+      Writer.open_file
+        ~append:false
+        (Filename.concat dir [%string "%{stamp}-%{Pid.to_string pid}.log"]))
+    >>| function
+    | Ok writer ->
+      Writer.set_raise_when_consumer_leaves writer false;
+      Monitor.detach_and_iter_errors (Writer.monitor writer) ~f:(fun exn ->
+        [%log.info
+          "codex session log write failed; disabling session capture"
+            ~_:(Monitor.extract_exn exn : exn)]);
+      Some writer
+    | Error exn ->
+      [%log.info
+        "codex session log setup failed; continuing without session capture"
+          ~_:(Monitor.extract_exn exn : exn)];
+      None
+  ;;
 end
 
 let non_interactive_tool_input_answer =
@@ -71,28 +118,32 @@ let default_turn_sandbox_policy ~workspace : Jsonaf.t =
     ]
 ;;
 
-let send_message process message =
-  Writer.write_line (Process.stdin process) (Jsonaf.to_string message)
+let send_message ?session_log process message =
+  let line = Jsonaf.to_string message in
+  Session_log.write session_log "client" line;
+  Writer.write_line (Process.stdin process) line
 ;;
 
-let send_request process ~id ~method_ ~params =
+let send_request ?session_log process ~id ~method_ ~params =
   send_message
+    ?session_log
     process
     (`Object
       [ "method", `String method_; "id", `Number (Int.to_string id); "params", params ])
 ;;
 
-let send_response process ~id ~result =
-  send_message process (`Object [ "id", id; "result", result ])
+let send_response ?session_log process ~id ~result =
+  send_message ?session_log process (`Object [ "id", id; "result", result ])
 ;;
 
 (* Reads one line within [timeout]. Distinguishes JSON, non-JSON noise, EOF, and timeout.
    The protocol reader never sees stderr — that has its own consumer. *)
-let read_message process ~timeout =
+let read_message ?session_log process ~timeout =
   match%map Clock_ns.with_timeout timeout (Reader.read_line (Process.stdout process)) with
   | `Timeout -> `Timeout
   | `Result `Eof -> `Eof
   | `Result (`Ok line) ->
+    Session_log.write session_log "server" line;
     (match Option.try_with (fun () -> Jsonaf.of_string line) with
      | Some json -> `Json json
      | None -> `Non_json line)
@@ -112,10 +163,10 @@ let log_non_json_line ~context line =
 
 (* Awaits the response to a specific request id, skipping unrelated messages (the
    reference does the same during startup). *)
-let await_response process ~id ~timeout =
+let await_response ?session_log process ~id ~timeout =
   let expected = Int.to_string id in
   let rec loop () =
-    match%bind read_message process ~timeout with
+    match%bind read_message ?session_log process ~timeout with
     | `Timeout -> return (Or_error.error_s [%message "response_timeout" (id : int)])
     | `Eof -> return (Or_error.error_s [%message "port_exit"])
     | `Non_json line ->
@@ -138,10 +189,12 @@ let await_response process ~id ~timeout =
 ;;
 
 (* Diagnostic stderr drains in the background for the life of the subprocess. *)
-let drain_stderr process =
+let drain_stderr ?session_log process =
   don't_wait_for
     (Reader.lines (Process.stderr process)
-     |> Pipe.iter_without_pushback ~f:(log_non_json_line ~context:"stderr"))
+     |> Pipe.iter_without_pushback ~f:(fun line ->
+       Session_log.write session_log "stderr" line;
+       log_non_json_line ~context:"stderr" line))
 ;;
 
 let scrubbed_environment ~secret_names =
@@ -184,7 +237,7 @@ let spawn_codex ~(config : Config.t) ~workspace ~secret_names =
   >>| Result.map_error ~f:(fun exn -> Error.of_exn (Monitor.extract_exn exn))
 ;;
 
-let start_session ~config ~workspace ~adapter ~on_update =
+let start_session ~config ~workspace ~session_log_dir ~adapter ~on_update =
   let emit ?session_id ?payload ?detail ~pid event =
     on_update
       { Update.event
@@ -204,10 +257,16 @@ let start_session ~config ~workspace ~adapter ~on_update =
   with
   | Error error -> return (fail_startup ~pid:None error)
   | Ok process ->
-    drain_stderr process;
+    let%bind session_log =
+      match session_log_dir with
+      | None -> return None
+      | Some dir -> Session_log.create ~dir ~pid:(Process.pid process)
+    in
+    drain_stderr ?session_log process;
     let pid = Some (Process.pid process) in
     let read_timeout = config.codex.read_timeout in
     send_request
+      ?session_log
       process
       ~id:initialize_id
       ~method_:"initialize"
@@ -221,12 +280,15 @@ let start_session ~config ~workspace ~adapter ~on_update =
                 ; "version", `String "0.1.0"
                 ] )
           ]);
-    (match%bind await_response process ~id:initialize_id ~timeout:read_timeout with
+    (match%bind
+       await_response ?session_log process ~id:initialize_id ~timeout:read_timeout
+     with
      | Error error ->
        let%map () = Process.send_signal process Signal.kill |> return in
        fail_startup ~pid error
      | Ok (_ : Jsonaf.t) ->
        send_message
+         ?session_log
          process
          (`Object [ "method", `String "initialized"; "params", `Object [] ]);
        let approval_policy = config.codex.approval_policy in
@@ -236,6 +298,7 @@ let start_session ~config ~workspace ~adapter ~on_update =
            ~default:(default_turn_sandbox_policy ~workspace)
        in
        send_request
+         ?session_log
          process
          ~id:thread_start_id
          ~method_:"thread/start"
@@ -246,7 +309,9 @@ let start_session ~config ~workspace ~adapter ~on_update =
              ; "cwd", `String workspace
              ; "dynamicTools", `Array adapter.Adapter.agent_tool_specs
              ]);
-       (match%bind await_response process ~id:thread_start_id ~timeout:read_timeout with
+       (match%bind
+          await_response ?session_log process ~id:thread_start_id ~timeout:read_timeout
+        with
         | Error error ->
           let%map () = Process.send_signal process Signal.kill |> return in
           fail_startup ~pid error
@@ -269,6 +334,7 @@ let start_session ~config ~workspace ~adapter ~on_update =
                   ; turn_sandbox_policy
                   ; on_update
                   ; last_session_id = None
+                  ; session_log
                   }))))
 ;;
 
@@ -380,6 +446,7 @@ let run_turn (session : Session.t) ~prompt ~(issue : Issue.t) =
            ; turn_sandbox_policy
            ; on_update
            ; last_session_id = _
+           ; session_log
            }
     =
     session
@@ -396,6 +463,7 @@ let run_turn (session : Session.t) ~prompt ~(issue : Issue.t) =
       }
   in
   send_request
+    ?session_log
     process
     ~id:turn_start_id
     ~method_:"turn/start"
@@ -409,7 +477,11 @@ let run_turn (session : Session.t) ~prompt ~(issue : Issue.t) =
         ; "sandboxPolicy", turn_sandbox_policy
         ]);
   match%bind
-    await_response process ~id:turn_start_id ~timeout:config.codex.read_timeout
+    await_response
+      ?session_log
+      process
+      ~id:turn_start_id
+      ~timeout:config.codex.read_timeout
   with
   | Error error -> return (Error error)
   | Ok result ->
@@ -429,7 +501,7 @@ let run_turn (session : Session.t) ~prompt ~(issue : Issue.t) =
          match Time_ns.Span.is_positive remaining with
          | false -> return (Or_error.error_s [%message "turn_timeout"])
          | true ->
-           (match%bind read_message process ~timeout:remaining with
+           (match%bind read_message ?session_log process ~timeout:remaining with
             | `Timeout -> return (Or_error.error_s [%message "turn_timeout"])
             | `Eof -> return (Or_error.error_s [%message "port_exit"])
             | `Non_json line ->
@@ -482,6 +554,7 @@ let run_turn (session : Session.t) ~prompt ~(issue : Issue.t) =
            (match request_id with
             | Some id ->
               send_response
+                ?session_log
                 process
                 ~id
                 ~result:([%jsonaf_of: Adapter.Tool_result.t] result)
@@ -499,7 +572,11 @@ let run_turn (session : Session.t) ~prompt ~(issue : Issue.t) =
             | Some (answers, auto_approved) ->
               (match request_id with
                | Some id ->
-                 send_response process ~id ~result:(`Object [ "answers", answers ])
+                 send_response
+                   ?session_log
+                   process
+                   ~id
+                   ~result:(`Object [ "answers", answers ])
                | None -> ());
               (match auto_approved with
                | true ->
@@ -522,6 +599,7 @@ let run_turn (session : Session.t) ~prompt ~(issue : Issue.t) =
                  (match request_id with
                   | Some id ->
                     send_response
+                      ?session_log
                       process
                       ~id
                       ~result:(`Object [ "decision", `String decision ])
@@ -566,8 +644,12 @@ let stop_session (session : Session.t) =
   in
   Process.send_signal process Signal.kill;
   (* Reap with a bounded wait; SIGKILL means this resolves promptly. *)
-  match%map
+  let%bind (_ : [ `Timeout | `Result of Core_unix.Exit_or_signal.t ]) =
     Clock_ns.with_timeout (Time_ns.Span.of_int_ms 5_000) (Process.wait process)
-  with
-  | `Timeout | `Result (_ : Core_unix.Exit_or_signal.t) -> ()
+  in
+  match session.session_log with
+  | None -> return ()
+  | Some writer ->
+    Monitor.try_with ~run:`Schedule (fun () -> Writer.close writer)
+    >>| (ignore : (unit, exn) Result.t -> unit)
 ;;

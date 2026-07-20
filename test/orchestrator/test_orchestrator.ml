@@ -448,7 +448,11 @@ let%expect_test "snapshot shape" =
         (last_event (Session_started))
         (last_message ("session started (th-1-tu-1)"))
         (started_at (1970-01-01 00:00:00.000000000Z))
-        (last_event_at ((1970-01-01 00:00:00.000000000Z))) (workspace_path ())
+        (last_event_at ((1970-01-01 00:00:00.000000000Z)))
+        (recent_events
+         (((at (1970-01-01 00:00:00.000000000Z)) (event Session_started)
+           (message "session started (th-1-tu-1)"))))
+        (workspace_path ())
         (tokens ((input_tokens 0) (output_tokens 0) (total_tokens 0)))
         (runtime_seconds 5))))
      (retrying ()) (blocked ())

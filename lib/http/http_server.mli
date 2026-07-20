@@ -17,10 +17,12 @@ end
 type t
 
 (** Starts the server. [port] [0] requests an ephemeral port (see {!bound_port}).
-    [snapshot] and [request_refresh] are called per request. *)
+    [snapshot] and [request_refresh] are called per request. [logs_root] is inspected
+    best-effort when presenting per-issue session logs. *)
 val start
   :  host:string
   -> port:int
+  -> logs_root:string
   -> snapshot:(unit -> Snapshot.t Deferred.t)
   -> request_refresh:(unit -> Refresh_result.t Deferred.t)
   -> t Deferred.Or_error.t

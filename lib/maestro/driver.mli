@@ -15,11 +15,13 @@ type t
 (** Starts the loop: runs startup terminal-workspace cleanup, then schedules the first
     tick. [config] and [workflow] are re-read from [workflow_store] each tick so reloads
     take effect. [make_adapter] builds the tracker adapter from the current tracker config
-    (snapshotted per worker session). *)
+    (snapshotted per worker session). [logs_root] holds best-effort per-issue Codex
+    session transcripts. *)
 val start
   :  workflow_store:Maestro_workflow.Workflow_store.t
   -> make_adapter:
        (Maestro_workflow.Config.Tracker.t -> Maestro_tracker.Adapter.t Or_error.t)
+  -> logs_root:string
   -> t Deferred.Or_error.t
 
 (** A current snapshot for status surfaces. *)

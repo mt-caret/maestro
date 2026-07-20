@@ -18,6 +18,7 @@ let running ~identifier ~state ~turn ~total ~session ~last =
   ; last_message = Some last
   ; started_at = Time_ns.epoch
   ; last_event_at = Some Time_ns.epoch
+  ; recent_events = []
   ; workspace_path = Some [%string "/tmp/ws/%{identifier}"]
   ; tokens = tokens ~input:(total / 2) ~output:(total / 2) ~total
   ; runtime_seconds = 785.
@@ -61,6 +62,7 @@ let sample_snapshot =
         ; blocked_at = Time_ns.epoch
         ; last_event = None
         ; last_message = None
+        ; recent_events = []
         }
       ]
   ; codex_totals =

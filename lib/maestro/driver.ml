@@ -18,6 +18,7 @@ type t =
   (** issue_id -> stop signal for its worker *)
   ; on_change : (unit -> unit) Bag.t
   ; stopped : unit Ivar.t
+  ; logs_root : string
   }
 
 let notify_observers t = Bag.iter t.on_change ~f:(fun f -> f ())
@@ -73,6 +74,10 @@ let spawn_worker t ~(issue : Maestro_tracker.Issue.t) ~attempt ~run_token =
     (let%bind result =
        Maestro_codex.Agent_runner.run
          ~stop:(Ivar.read stop)
+         ~session_log_dir:
+           (t.logs_root
+            ^/ "sessions"
+            ^/ Maestro_workspace.Workspace.key ~identifier:issue.identifier)
          ~config
          ~workflow
          ~adapter
@@ -164,7 +169,7 @@ let startup_cleanup t =
       | Ok () | Error _ -> ())
 ;;
 
-let start ~workflow_store ~make_adapter =
+let start ~workflow_store ~make_adapter ~logs_root =
   let%bind workflow = Workflow_store.current workflow_store in
   match make_adapter workflow.config.tracker with
   | Error _ as error -> return error
@@ -182,6 +187,7 @@ let start ~workflow_store ~make_adapter =
       ; worker_stops = String.Table.create ()
       ; on_change = Bag.create ()
       ; stopped = Ivar.create ()
+      ; logs_root
       }
     in
     (* Refresh config at the head of every event so ticks/retries see the latest. *)

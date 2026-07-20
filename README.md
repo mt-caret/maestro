@@ -53,9 +53,10 @@ maestro --i-understand-that-this-will-be-running-without-the-usual-guardrails \
 
 - The positional path defaults to `./WORKFLOW.md`; a missing file is a clean startup error.
 - The acknowledgement flag is mandatory (see the trust posture above).
-- `--logs-root DIR` writes a rotating log to `DIR/log/maestro.log` (default `./log`). On an
-  interactive terminal the dashboard owns the screen and logs go to the file; headless runs
-  log to stderr.
+- `--logs-root DIR` writes a rotating daemon log to `DIR/log/maestro.log` and retains the
+  ten latest Codex transcripts per issue under `DIR/sessions/<issue>/` (default `./log`).
+  On an interactive terminal the dashboard owns the screen and daemon logs go to the file;
+  headless runs send daemon logs to stderr. Session transcripts are always best-effort.
 - `--port PORT` (or `server.port` in the workflow) enables the HTTP dashboard and JSON API.
   `--port 0` picks an ephemeral port. It binds to `127.0.0.1` by default; use `--host HOST`
   (or `server.host` in the workflow) to change the bind address, such as `0.0.0.0` for
@@ -77,8 +78,8 @@ When enabled, under `/api/v1`:
 
 - `GET /api/v1/state` — running sessions, retry queue, blocked issues, aggregate token and
   runtime totals, latest rate limits.
-- `GET /api/v1/<issue_identifier>` — per-issue runtime detail (`404 issue_not_found` if
-  unknown).
+- `GET /api/v1/<issue_identifier>` — per-issue runtime detail, recent Codex events, and
+  retained session-log paths (`404 issue_not_found` if unknown).
 - `POST /api/v1/refresh` — queue an immediate poll + reconcile cycle.
 - `GET /` — a self-contained HTML dashboard that polls the JSON API.
 

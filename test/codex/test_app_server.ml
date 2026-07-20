@@ -74,7 +74,12 @@ let with_session ~dir ~config ~adapter ~f =
   in
   let on_update, show_updates = collect_updates () in
   match%bind
-    App_server.start_session ~config ~workspace:workspace.path ~adapter ~on_update
+    App_server.start_session
+      ~config
+      ~workspace:workspace.path
+      ~session_log_dir:None
+      ~adapter
+      ~on_update
   with
   | Error error ->
     print_s [%sexp (error : Error.t)];
@@ -419,6 +424,7 @@ let%expect_test "subprocess exit mid-turn is port_exit; slow startup is response
         App_server.start_session
           ~config
           ~workspace:workspace.path
+          ~session_log_dir:None
           ~adapter:memory_adapter
           ~on_update
       with

@@ -8,6 +8,7 @@
   cohttp-async
   uri
   maestro_orchestrator
+  maestro_workspace
   maestro_observability)
  (preprocess
   (pps ppx_jane)))

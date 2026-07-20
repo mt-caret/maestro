@@ -13,6 +13,15 @@ module Worker_outcome = struct
 end
 
 module Running_entry = struct
+  module Recent_event = struct
+    type t =
+      { at : Time_ns.t
+      ; event : Update.Event.t
+      ; message : string
+      }
+    [@@deriving sexp_of]
+  end
+
   type t =
     { identifier : string
     ; issue : Issue.t
@@ -25,6 +34,7 @@ module Running_entry = struct
     ; last_event : Update.Event.t option
     ; last_message : string option
     ; last_timestamp : Time_ns.t option
+    ; recent_events : Recent_event.t list
     ; input_blocked : bool
     ; tokens : Token_accounting.Counters.t
     }
@@ -55,6 +65,7 @@ module Blocked_entry = struct
     ; last_event : Update.Event.t option
     ; last_message : string option
     ; last_timestamp : Time_ns.t option
+    ; recent_events : Running_entry.Recent_event.t list
     }
   [@@deriving sexp_of]
 end
@@ -277,12 +288,25 @@ let integrate_update (state : State.t) ~issue_id ~(update : Update.t) =
       | None -> state.rate_limits
     in
     let entry =
+      let message = Humanizer.summarize update in
+      let recent_events =
+        entry.recent_events
+        @ [ { Running_entry.Recent_event.at = update.timestamp
+            ; event = update.event
+            ; message
+            }
+          ]
+        |> List.rev
+        |> Fn.flip List.take 20
+        |> List.rev
+      in
       { entry with
         session_id
       ; turn_count
       ; last_event = Some update.event
-      ; last_message = Some (Humanizer.summarize update)
+      ; last_message = Some message
       ; last_timestamp = Some update.timestamp
+      ; recent_events
       ; input_blocked
       ; tokens
       }
@@ -318,6 +342,7 @@ let dispatch (state : State.t) ~(config : Config.t) ~now ~(issue : Issue.t) ~att
     ; last_event = None
     ; last_message = None
     ; last_timestamp = None
+    ; recent_events = []
     ; input_blocked = false
     ; tokens = Token_accounting.Counters.empty
     }
@@ -378,6 +403,7 @@ let handle_worker_exit
         ; last_event = entry.last_event
         ; last_message = entry.last_message
         ; last_timestamp = entry.last_timestamp
+        ; recent_events = entry.recent_events
         }
       in
       ( { state with
@@ -492,6 +518,7 @@ let reconcile_stalled (state : State.t) ~(config : Config.t) ~now =
                    ; last_event = entry.last_event
                    ; last_message = entry.last_message
                    ; last_timestamp = entry.last_timestamp
+                   ; recent_events = entry.recent_events
                    }
                  in
                  ( { state' with
@@ -617,6 +644,12 @@ let to_snapshot (state : State.t) ~(config : Config.t) ~now =
       ; last_message = entry.last_message
       ; started_at = entry.started_at
       ; last_event_at = entry.last_timestamp
+      ; recent_events =
+          List.map entry.recent_events ~f:(fun event ->
+            { Snapshot.Recent_event.at = event.at
+            ; event = Sexp.to_string [%sexp (event.event : Update.Event.t)]
+            ; message = event.message
+            })
       ; workspace_path = entry.workspace_path
       ; tokens =
           { input_tokens = Token_accounting.Counters.input entry.tokens
@@ -655,6 +688,12 @@ let to_snapshot (state : State.t) ~(config : Config.t) ~now =
           Option.map entry.last_event ~f:(fun event ->
             Sexp.to_string [%sexp (event : Update.Event.t)])
       ; last_message = entry.last_message
+      ; recent_events =
+          List.map entry.recent_events ~f:(fun event ->
+            { Snapshot.Recent_event.at = event.at
+            ; event = Sexp.to_string [%sexp (event.event : Update.Event.t)]
+            ; message = event.message
+            })
       })
     |> List.sort ~compare:(fun a b ->
       String.compare a.Snapshot.Blocked.issue_identifier b.issue_identifier)

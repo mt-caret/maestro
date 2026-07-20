@@ -22,6 +22,15 @@ module Tokens = struct
   [@@deriving sexp_of, jsonaf_of]
 end
 
+module Recent_event = struct
+  type t =
+    { at : Time.t
+    ; event : string
+    ; message : string
+    }
+  [@@deriving sexp_of, jsonaf_of]
+end
+
 module Running = struct
   type t =
     { issue_id : string
@@ -34,6 +43,7 @@ module Running = struct
     ; last_message : string option
     ; started_at : Time.t
     ; last_event_at : Time.t option
+    ; recent_events : Recent_event.t list
     ; workspace_path : string option
     ; tokens : Tokens.t
     ; runtime_seconds : float
@@ -65,6 +75,7 @@ module Blocked = struct
     ; blocked_at : Time.t
     ; last_event : string option
     ; last_message : string option
+    ; recent_events : Recent_event.t list
     }
   [@@deriving sexp_of, jsonaf_of]
 end

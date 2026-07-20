@@ -59,3 +59,26 @@ let%expect_test "control bytes stripped and length capped" =
   print_s [%sexp (String.length summary : int)];
   [%expect {| 140 |}]
 ;;
+
+let%expect_test "wrapper, delta, exec, and token events" =
+  show (update ~payload:{|{"method":"item/agentMessage/delta"}|} ());
+  [%expect {| agent message streaming |}];
+  show
+    (update
+       ~payload:
+         {|{"method":"codex/event/exec_command_begin","params":{"msg":{"command":"dune runtest"}}}|}
+       ());
+  [%expect {| dune runtest |}];
+  show
+    (update
+       ~payload:
+         {|{"method":"codex/event/exec_command_end","params":{"msg":{"exit_code":2}}}|}
+       ());
+  [%expect {| command completed (exit 2) |}];
+  show
+    (update
+       ~payload:
+         {|{"method":"codex/event/token_count","params":{"msg":{"usage":{"total_tokens":42}}}}|}
+       ());
+  [%expect {| token count update (42 total) |}]
+;;
