@@ -16,6 +16,7 @@ val run
   -> logs_root:string
   -> port:int option
   -> host:string option
+  -> reset_scheduler_state:bool
   -> ?memory_issues:(unit -> Maestro_tracker.Issue.t list)
   -> unit
   -> unit Deferred.Or_error.t

@@ -8,6 +8,9 @@
   maestro_workflow
   maestro_tracker
   maestro_workspace
-  maestro_codex)
+  maestro_codex
+  expect_test_helpers_core)
+ (inline_tests
+  (flags -source-tree-root .))
  (preprocess
-  (pps ppx_jane ppx_jsonaf_conv)))
+  (pps ppx_jane ppx_jsonaf_conv ppx_stable_witness)))

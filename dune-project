@@ -23,6 +23,7 @@
   core_unix
   async
   ppx_jane
+  ppx_stable_witness
   jsonaf
   ppx_jsonaf_conv
   yaml

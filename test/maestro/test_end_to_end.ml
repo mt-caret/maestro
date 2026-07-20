@@ -74,8 +74,11 @@ Work on {{ issue.identifier }}.|}]
       >>| ok_exn
     in
     let%bind driver =
-      Driver.start ~workflow_store:store ~make_adapter:(fun tracker ->
-        Adapter_registry.build ~memory_issues:(fun () -> !board) tracker)
+      Driver.start
+        ~workflow_store:store
+        ~make_adapter:(fun tracker ->
+          Adapter_registry.build ~memory_issues:(fun () -> !board) tracker)
+        ()
       >>| ok_exn
     in
     (* Wait until the fake codex has written its proof file (the turn ran). *)

@@ -17,9 +17,12 @@ type t
     take effect. [make_adapter] builds the tracker adapter from the current tracker config
     (snapshotted per worker session). *)
 val start
-  :  workflow_store:Maestro_workflow.Workflow_store.t
+  :  ?snapshot_path:string
+  -> ?reset_state:bool
+  -> workflow_store:Maestro_workflow.Workflow_store.t
   -> make_adapter:
        (Maestro_workflow.Config.Tracker.t -> Maestro_tracker.Adapter.t Or_error.t)
+  -> unit
   -> t Deferred.Or_error.t
 
 (** A current snapshot for status surfaces. *)

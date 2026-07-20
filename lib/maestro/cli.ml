@@ -39,6 +39,11 @@ let command =
          (optional string)
          ~aliases:[ "-host" ]
          ~doc:"HOST bind the HTTP dashboard to HOST"
+     and reset_scheduler_state =
+       flag
+         "--reset-scheduler-state"
+         no_arg
+         ~doc:" replace an unreadable scheduler snapshot with empty state"
      and workflow_path =
        anon (maybe_with_default "./WORKFLOW.md" ("path-to-WORKFLOW.md" %: string))
      in
@@ -47,5 +52,5 @@ let command =
        | false ->
          Writer.write_line (force Writer.stderr) guardrails_banner;
          Deferred.Or_error.error_string "missing guardrails acknowledgement"
-       | true -> App.run ~workflow_path ~logs_root ~port ~host ())
+       | true -> App.run ~workflow_path ~logs_root ~port ~host ~reset_scheduler_state ())
 ;;

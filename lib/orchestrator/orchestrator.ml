@@ -42,6 +42,21 @@ module Retry_entry = struct
     ; workspace_path : string option
     }
   [@@deriving sexp_of]
+
+  module Stable = struct
+    module V1 = struct
+      type t =
+        { attempt : int
+        ; due_at : Time_ns.Stable.V1.t
+        ; token : int
+        ; identifier : string
+        ; issue_url : string option
+        ; error : string option
+        ; workspace_path : string option
+        }
+      [@@deriving bin_io, sexp, stable_witness]
+    end
+  end
 end
 
 module Blocked_entry = struct
@@ -57,6 +72,23 @@ module Blocked_entry = struct
     ; last_timestamp : Time_ns.t option
     }
   [@@deriving sexp_of]
+
+  module Stable = struct
+    module V1 = struct
+      type t =
+        { identifier : string
+        ; issue : Issue.Stable.V1.t
+        ; workspace_path : string option
+        ; session_id : string option
+        ; error : string option
+        ; blocked_at : Time_ns.Stable.V1.t
+        ; last_event : string option
+        ; last_message : string option
+        ; last_timestamp : Time_ns.Stable.V1.t option
+        }
+      [@@deriving bin_io, sexp, stable_witness]
+    end
+  end
 end
 
 module Codex_totals = struct
@@ -69,6 +101,18 @@ module Codex_totals = struct
   [@@deriving sexp_of]
 
   let empty = { input = 0; output = 0; total = 0; seconds_running = 0. }
+
+  module Stable = struct
+    module V1 = struct
+      type t =
+        { input : int
+        ; output : int
+        ; total : int
+        ; seconds_running : float
+        }
+      [@@deriving bin_io, sexp, stable_witness]
+    end
+  end
 end
 
 module Poll_state = struct
@@ -83,6 +127,8 @@ module Poll_state = struct
 end
 
 module State = struct
+  let snapshot_header = "maestro-scheduler-snapshot-v1\n"
+
   type t =
     { running : Running_entry.t String.Map.t
     ; claimed : String.Set.t
@@ -94,6 +140,26 @@ module State = struct
     ; poll : Poll_state.t
     }
   [@@deriving sexp_of]
+
+  module Stable = struct
+    module V1 = struct
+      type t =
+        { claimed : string list
+        ; blocked : (string * Blocked_entry.Stable.V1.t) list
+        ; retry : (string * Retry_entry.Stable.V1.t) list
+        ; completed : string list
+        ; codex_totals : Codex_totals.Stable.V1.t
+        ; rate_limits : string option
+        }
+      [@@deriving bin_io, sexp, stable_witness]
+    end
+  end
+
+  let%expect_test "stable scheduler snapshot V1 bin shape" =
+    print_endline (Bin_prot.Shape.eval_to_digest_string Stable.V1.bin_shape_t);
+    [%expect {| 13cd666c4873a791ac5032015074dac3 |}];
+    return ()
+  ;;
 
   let create () =
     { running = String.Map.empty
@@ -109,6 +175,142 @@ module State = struct
 
   let claimed t = t.claimed
   let completed t = t.completed
+
+  let to_stable_v1 t : Stable.V1.t =
+    let blocked =
+      Map.to_alist t.blocked
+      |> List.map ~f:(fun (issue_id, entry) ->
+        ( issue_id
+        , { Blocked_entry.Stable.V1.identifier = entry.identifier
+          ; issue = Issue.to_stable_v1 entry.issue
+          ; workspace_path = entry.workspace_path
+          ; session_id = entry.session_id
+          ; error = entry.error
+          ; blocked_at = entry.blocked_at
+          ; last_event =
+              Option.map entry.last_event ~f:(fun event ->
+                Sexp.to_string ([%sexp_of: Update.Event.t] event))
+          ; last_message = entry.last_message
+          ; last_timestamp = entry.last_timestamp
+          } ))
+    in
+    let retry =
+      Map.to_alist t.retry
+      |> List.map ~f:(fun (issue_id, entry) ->
+        ( issue_id
+        , { Retry_entry.Stable.V1.attempt = entry.attempt
+          ; due_at = entry.due_at
+          ; token = Token.to_int_exn entry.token
+          ; identifier = entry.identifier
+          ; issue_url = entry.issue_url
+          ; error = entry.error
+          ; workspace_path = entry.workspace_path
+          } ))
+    in
+    { claimed = Set.to_list t.claimed
+    ; blocked
+    ; retry
+    ; completed = Set.to_list t.completed
+    ; codex_totals =
+        { Codex_totals.Stable.V1.input = t.codex_totals.input
+        ; output = t.codex_totals.output
+        ; total = t.codex_totals.total
+        ; seconds_running = t.codex_totals.seconds_running
+        }
+    ; rate_limits = Option.map t.rate_limits ~f:Jsonaf.to_string
+    }
+  ;;
+
+  let serialize t =
+    snapshot_header ^ Sexp.to_string_hum [%sexp (to_stable_v1 t : Stable.V1.t)]
+  ;;
+
+  let restore serialized ~now =
+    let open Or_error.Let_syntax in
+    let%bind serialized =
+      match String.chop_prefix serialized ~prefix:snapshot_header with
+      | Some payload -> Ok payload
+      | None -> Or_error.error_string "unsupported scheduler snapshot version"
+    in
+    let%bind stable =
+      Or_error.try_with (fun () -> Stable.V1.t_of_sexp (Sexp.of_string serialized))
+    in
+    let%bind blocked =
+      List.map stable.blocked ~f:(fun (issue_id, entry) ->
+        let%bind issue = Issue.of_stable_v1 entry.issue in
+        let%map last_event =
+          match entry.last_event with
+          | None -> Ok None
+          | Some event ->
+            Or_error.try_with (fun () ->
+              Some (Update.Event.t_of_sexp (Sexp.of_string event)))
+        in
+        ( issue_id
+        , { Blocked_entry.identifier = entry.identifier
+          ; issue
+          ; workspace_path = entry.workspace_path
+          ; session_id = entry.session_id
+          ; error = entry.error
+          ; blocked_at = entry.blocked_at
+          ; last_event
+          ; last_message = entry.last_message
+          ; last_timestamp = entry.last_timestamp
+          } ))
+      |> Or_error.combine_errors
+    in
+    let%bind retry, retry_effects =
+      Or_error.try_with (fun () ->
+        let max_token =
+          List.fold stable.retry ~init:(-1) ~f:(fun max (_, entry) ->
+            Int.max max entry.token)
+        in
+        let rec advance_token_counter () =
+          if Token.to_int_exn (Token.create ()) <= max_token then advance_token_counter ()
+        in
+        advance_token_counter ();
+        List.map stable.retry ~f:(fun (issue_id, entry) ->
+          let token = Token.of_int_exn entry.token in
+          let delay =
+            Time_ns.diff entry.due_at now |> Time_ns.Span.max (Time_ns.Span.of_int_ms 1)
+          in
+          ( ( issue_id
+            , { Retry_entry.attempt = entry.attempt
+              ; due_at = entry.due_at
+              ; token
+              ; identifier = entry.identifier
+              ; issue_url = entry.issue_url
+              ; error = entry.error
+              ; workspace_path = entry.workspace_path
+              } )
+          , (issue_id, delay, token) ))
+        |> List.unzip)
+    in
+    let durable_claims =
+      List.map blocked ~f:fst @ List.map retry ~f:fst |> String.Set.of_list
+    in
+    let%bind blocked = String.Map.of_alist_or_error blocked in
+    let%bind retry = String.Map.of_alist_or_error retry in
+    let%map rate_limits =
+      match stable.rate_limits with
+      | None -> Ok None
+      | Some value -> Or_error.try_with (fun () -> Some (Jsonaf.of_string value))
+    in
+    ( { running = String.Map.empty
+      ; claimed = Set.inter (String.Set.of_list stable.claimed) durable_claims
+      ; blocked
+      ; retry
+      ; completed = String.Set.of_list stable.completed
+      ; codex_totals =
+          { Codex_totals.input = stable.codex_totals.input
+          ; output = stable.codex_totals.output
+          ; total = stable.codex_totals.total
+          ; seconds_running = stable.codex_totals.seconds_running
+          }
+      ; rate_limits
+      ; poll = Poll_state.initial
+      }
+    , retry_effects )
+  ;;
 end
 
 module Event = struct

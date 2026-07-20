@@ -36,7 +36,15 @@ let wait_for_shutdown () =
   Ivar.read shutdown
 ;;
 
-let run ~workflow_path ~logs_root ~port ~host ?(memory_issues = fun () -> []) () =
+let run
+  ~workflow_path
+  ~logs_root
+  ~port
+  ~host
+  ~reset_scheduler_state
+  ?(memory_issues = fun () -> [])
+  ()
+  =
   let%bind is_tty = Unix.isatty (Fd.stdin ()) in
   (* Interactive terminals get the dashboard and a file log; headless runs log to stderr. *)
   let%bind () =
@@ -62,7 +70,15 @@ let run ~workflow_path ~logs_root ~port ~host ?(memory_issues = fun () -> []) ()
     let%bind workflow = Workflow_store.current workflow_store in
     let config = workflow.config in
     let make_adapter tracker = Adapter_registry.build ~memory_issues tracker in
-    (match%bind Driver.start ~workflow_store ~make_adapter with
+    let snapshot_path = Filename.concat logs_root "state/snapshot.sexp" in
+    (match%bind
+       Driver.start
+         ~snapshot_path
+         ~reset_state:reset_scheduler_state
+         ~workflow_store
+         ~make_adapter
+         ()
+     with
      | Error _ as error -> return error
      | Ok driver ->
        (match%bind

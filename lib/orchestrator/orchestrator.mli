@@ -27,6 +27,12 @@ end
 module State : sig
   type t [@@deriving sexp_of]
 
+  module Stable : sig
+    module V1 : sig
+      type t [@@deriving bin_io, stable_witness]
+    end
+  end
+
   val create : unit -> t
 
   (** Issues reserved to prevent duplicate dispatch (running, retry-queued, or blocked). *)
@@ -34,6 +40,17 @@ module State : sig
 
   (** Bookkeeping only; never gates dispatch (SPEC §7.4). *)
   val completed : t -> String.Set.t
+
+  (** Encodes the durable portion of the scheduler. Running workers and poll bookkeeping
+      are intentionally excluded because they cannot survive a process restart. *)
+  val serialize : t -> string
+
+  (** Restores durable state and returns retry timers to arm as
+      [(issue_id, remaining_delay, token)]. Expired timers use a 1 ms delay. *)
+  val restore
+    :  string
+    -> now:Time_ns.t
+    -> (t * (string * Time_ns.Span.t * Token.t) list) Or_error.t
 end
 
 module Event : sig

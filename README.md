@@ -48,14 +48,18 @@ dune runtest
 
 ```bash
 maestro --i-understand-that-this-will-be-running-without-the-usual-guardrails \
-  [--logs-root DIR] [--port PORT] [--host HOST] [path-to-WORKFLOW.md]
+  [--logs-root DIR] [--port PORT] [--host HOST] [--reset-scheduler-state] \
+  [path-to-WORKFLOW.md]
 ```
 
 - The positional path defaults to `./WORKFLOW.md`; a missing file is a clean startup error.
 - The acknowledgement flag is mandatory (see the trust posture above).
-- `--logs-root DIR` writes a rotating log to `DIR/log/maestro.log` (default `./log`). On an
-  interactive terminal the dashboard owns the screen and logs go to the file; headless runs
-  log to stderr.
+- `--logs-root DIR` writes a rotating log to `DIR/log/maestro.log` and scheduler state to
+  `DIR/state/snapshot.sexp` (default root `./log`). On an interactive terminal the dashboard
+  owns the screen and logs go to the file; headless runs log to stderr. The scheduler restores
+  blocked issues and pending retries after a restart. A missing snapshot starts with clean state.
+  An unreadable or corrupt snapshot stops startup. Use `--reset-scheduler-state` to replace it
+  with clean state.
 - `--port PORT` (or `server.port` in the workflow) enables the HTTP dashboard and JSON API.
   `--port 0` picks an ephemeral port. It binds to `127.0.0.1` by default; use `--host HOST`
   (or `server.host` in the workflow) to change the bind address, such as `0.0.0.0` for

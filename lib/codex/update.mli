@@ -25,7 +25,7 @@ module Event : sig
     | Other_message
     | Malformed
     | Turn_ended_with_error
-  [@@deriving sexp_of, equal]
+  [@@deriving sexp, equal]
 end
 
 type t =

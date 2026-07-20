@@ -460,3 +460,87 @@ let%expect_test "snapshot shape" =
     |}];
   return ()
 ;;
+
+let%expect_test "stable scheduler snapshot round trip restores retry and claim" =
+  let t = create () in
+  t.issues <- [ issue ~id:"a" ~identifier:"MT-1" () ];
+  let%bind spawned = poll t in
+  let _, _, run_token = List.hd_exn spawned in
+  let%bind (_ : _ list) =
+    feed t (Worker_exited { issue_id = "a"; run_token; outcome = Failed "boom" })
+  in
+  let serialized = State.serialize t.state in
+  let restored, timers = State.restore serialized ~now:t.now |> ok_exn in
+  print_s
+    [%message
+      ""
+        ~same_wire_format:(String.equal serialized (State.serialize restored) : bool)
+        ~claimed:(Set.to_list (State.claimed restored) : string list)
+        ~timers:
+          (List.map timers ~f:(fun (issue_id, delay, _) ->
+             issue_id, Time_ns.Span.to_int_ms delay)
+           : (string * int) list)];
+  [%expect {|
+    ((same_wire_format true) (claimed (a)) (timers ((a 10000))))
+    |}];
+  return ()
+;;
+
+let%expect_test "restart restores blocked and retry state and drops running" =
+  let t = create () in
+  t.issues
+  <- [ issue ~id:"blocked" ~identifier:"MT-1" ()
+     ; issue ~id:"retry" ~identifier:"MT-2" ()
+     ; issue ~id:"running" ~identifier:"MT-3" ()
+     ];
+  let%bind spawned = poll t in
+  let token issue_id =
+    List.find_map_exn spawned ~f:(fun (issue, _, token) ->
+      Option.some_if (String.equal issue.id issue_id) token)
+  in
+  let approval_update =
+    { Maestro_codex.Update.event = Approval_required
+    ; timestamp = t.now
+    ; codex_app_server_pid = None
+    ; session_id = Some "blocked-session"
+    ; payload = None
+    ; detail = None
+    }
+  in
+  let%bind (_ : _ list) =
+    feed t (Codex_update { issue_id = "blocked"; update = approval_update })
+  in
+  let%bind (_ : _ list) =
+    feed
+      t
+      (Worker_exited
+         { issue_id = "blocked"; run_token = token "blocked"; outcome = Failed "input" })
+  in
+  let%bind (_ : _ list) =
+    feed
+      t
+      (Worker_exited
+         { issue_id = "retry"; run_token = token "retry"; outcome = Failed "boom" })
+  in
+  let%bind running_spawn = poll t in
+  assert (
+    List.exists running_spawn ~f:(fun (issue, _, _) -> String.equal issue.id "running"));
+  let restored, timers = State.restore (State.serialize t.state) ~now:t.now |> ok_exn in
+  let snapshot = Orchestrator.to_snapshot restored ~config:t.config ~now:t.now in
+  print_s
+    [%message
+      ""
+        ~running:(List.length snapshot.running : int)
+        ~blocked:
+          (List.map snapshot.blocked ~f:(fun entry -> entry.issue_id) : string list)
+        ~retrying:
+          (List.map snapshot.retrying ~f:(fun entry -> entry.issue_id) : string list)
+        ~claimed:(Set.to_list (State.claimed restored) : string list)
+        ~rearmed:(List.map timers ~f:(fun (issue_id, _, _) -> issue_id) : string list)];
+  [%expect
+    {|
+    ((running 0) (blocked (blocked)) (retrying (retry)) (claimed (blocked retry))
+     (rearmed (retry)))
+    |}];
+  return ()
+;;

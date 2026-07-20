@@ -18,6 +18,7 @@ type t =
   (** issue_id -> stop signal for its worker *)
   ; on_change : (unit -> unit) Bag.t
   ; stopped : unit Ivar.t
+  ; snapshot_path : string option
   }
 
 let notify_observers t = Bag.iter t.on_change ~f:(fun f -> f ())
@@ -132,8 +133,21 @@ let interpret_effect t (effect : Effect.t) =
   | Notify -> notify_observers t
 ;;
 
+let persist_state t =
+  match t.snapshot_path with
+  | None -> return ()
+  | Some path ->
+    Monitor.try_with_or_error (fun () ->
+      let%bind () = Unix.mkdir ~p:() (Filename.dirname path) in
+      Writer.save path ~contents:(State.serialize t.state))
+    >>| (function
+     | Ok () -> ()
+     | Error error ->
+       [%log.error "scheduler snapshot write failed" ~path ~_:(error : Error.t)])
+;;
+
 let process_event t event =
-  let%map state, effects =
+  let%bind state, effects =
     Orchestrator.handle
       t.state
       ~config:t.config
@@ -143,7 +157,8 @@ let process_event t event =
       event
   in
   t.state <- state;
-  List.iter effects ~f:(interpret_effect t)
+  List.iter effects ~f:(interpret_effect t);
+  persist_state t
 ;;
 
 let startup_cleanup t =
@@ -164,38 +179,77 @@ let startup_cleanup t =
       | Ok () | Error _ -> ())
 ;;
 
-let start ~workflow_store ~make_adapter =
+let load_state ~snapshot_path ~reset_state =
+  match snapshot_path with
+  | None -> return (Ok (State.create (), []))
+  | Some _ when reset_state -> return (Ok (State.create (), []))
+  | Some path ->
+    (match Sys_unix.file_exists path with
+     | `No | `Unknown -> return (Ok (State.create (), []))
+     | `Yes ->
+       (match%bind Monitor.try_with_or_error (fun () -> Reader.file_contents path) with
+        | Error error ->
+          return
+            (Or_error.tag_arg
+               (Error error)
+               "scheduler snapshot read failed"
+               path
+               [%sexp_of: string])
+        | Ok serialized ->
+          (match State.restore serialized ~now:(Time_ns.now ()) with
+           | Ok restored ->
+             [%log.info "scheduler snapshot restored" ~path];
+             return (Ok restored)
+           | Error error ->
+             return
+               (Or_error.tag_arg
+                  (Error error)
+                  "scheduler snapshot is corrupt; use --reset-scheduler-state to replace \
+                   it"
+                  path
+                  [%sexp_of: string]))))
+;;
+
+let start ?snapshot_path ?(reset_state = false) ~workflow_store ~make_adapter () =
   let%bind workflow = Workflow_store.current workflow_store in
   match make_adapter workflow.config.tracker with
   | Error _ as error -> return error
   | Ok adapter ->
-    let events, writer = Pipe.create () in
-    let t =
-      { workflow_store
-      ; make_adapter
-      ; events = writer
-      ; state = State.create ()
-      ; config = workflow.config
-      ; workflow
-      ; adapter
-      ; config_valid = true
-      ; worker_stops = String.Table.create ()
-      ; on_change = Bag.create ()
-      ; stopped = Ivar.create ()
-      }
-    in
-    (* Refresh config at the head of every event so ticks/retries see the latest. *)
-    don't_wait_for
-      (let%bind () =
-         Pipe.iter events ~f:(fun event ->
-           let%bind () = refresh_config t in
-           process_event t event)
+    let%bind restored = load_state ~snapshot_path ~reset_state in
+    (match restored with
+     | Error _ as error -> return error
+     | Ok (state, recovered_retries) ->
+       let events, writer = Pipe.create () in
+       let t =
+         { workflow_store
+         ; make_adapter
+         ; events = writer
+         ; state
+         ; config = workflow.config
+         ; workflow
+         ; adapter
+         ; config_valid = true
+         ; worker_stops = String.Table.create ()
+         ; on_change = Bag.create ()
+         ; stopped = Ivar.create ()
+         ; snapshot_path
+         }
        in
-       Ivar.fill_if_empty t.stopped ();
-       return ());
-    let%bind () = startup_cleanup t in
-    post t (Tick { token = None });
-    return (Ok t)
+       let%bind () = if reset_state then persist_state t else return () in
+       (* Refresh config at the head of every event so ticks/retries see the latest. *)
+       don't_wait_for
+         (let%bind () =
+            Pipe.iter events ~f:(fun event ->
+              let%bind () = refresh_config t in
+              process_event t event)
+          in
+          Ivar.fill_if_empty t.stopped ();
+          return ());
+       let%bind () = startup_cleanup t in
+       List.iter recovered_retries ~f:(fun (issue_id, delay, token) ->
+         interpret_effect t (Schedule_retry { issue_id; delay; token }));
+       post t (Tick { token = None });
+       return (Ok t))
 ;;
 
 let snapshot t =
