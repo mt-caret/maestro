@@ -5,7 +5,7 @@ open Maestro_observability
 
 let dashboard_url ~host ~port = [%string "http://%{host}:%{port#Int}/"]
 
-let maybe_start_http ~(config : Config.t) ~port_override ~driver =
+let maybe_start_http ~(config : Config.t) ~port_override ~host_override ~driver =
   let port =
     match port_override with
     | Some _ as port -> port
@@ -14,7 +14,7 @@ let maybe_start_http ~(config : Config.t) ~port_override ~driver =
   match port with
   | None -> return (Ok (None, None))
   | Some port ->
-    let host = config.server.host in
+    let host = Option.value host_override ~default:config.server.host in
     (match%map
        Maestro_http.Http_server.start
          ~host
@@ -36,7 +36,7 @@ let wait_for_shutdown () =
   Ivar.read shutdown
 ;;
 
-let run ~workflow_path ~logs_root ~port ?(memory_issues = fun () -> []) () =
+let run ~workflow_path ~logs_root ~port ~host ?(memory_issues = fun () -> []) () =
   let%bind is_tty = Unix.isatty (Fd.stdin ()) in
   (* Interactive terminals get the dashboard and a file log; headless runs log to stderr. *)
   let%bind () =
@@ -65,7 +65,9 @@ let run ~workflow_path ~logs_root ~port ?(memory_issues = fun () -> []) () =
     (match%bind Driver.start ~workflow_store ~make_adapter with
      | Error _ as error -> return error
      | Ok driver ->
-       (match%bind maybe_start_http ~config ~port_override:port ~driver with
+       (match%bind
+          maybe_start_http ~config ~port_override:port ~host_override:host ~driver
+        with
         | Error _ as error -> return error
         | Ok (http_server, url) ->
           let shutdown () =

@@ -8,12 +8,14 @@
 open! Core
 open! Async
 
-(** [port] overrides [server.port]; [memory_issues] backs a [memory] tracker (for tests
-    and local runs). Returns an error on startup failure. *)
+(** [port] and [host] override [server.port] and [server.host], respectively;
+    [memory_issues] backs a [memory] tracker (for tests and local runs). Returns an error
+    on startup failure. *)
 val run
   :  workflow_path:string
   -> logs_root:string
   -> port:int option
+  -> host:string option
   -> ?memory_issues:(unit -> Maestro_tracker.Issue.t list)
   -> unit
   -> unit Deferred.Or_error.t

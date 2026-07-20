@@ -59,6 +59,7 @@ codex:
 # Optional HTTP dashboard + JSON API (also enable with --port). Loopback by default.
 # server:
 #   port: 8080
+#   host: 0.0.0.0
 ---
 You are working on {{ issue.identifier }}: {{ issue.title }}.
 
