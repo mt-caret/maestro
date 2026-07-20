@@ -145,6 +145,9 @@ library under `lib/` has an `.mli`; tests live under `test/`. The layering — t
 workflow/config, workspace, tracker/linear, codex, orchestrator, observability, http, tui,
 and the `maestro` wiring — mirrors the SPEC's abstraction levels.
 
+See [`AGENTS.md`](AGENTS.md) for the coding and documentation style used in this repository and
+the review checklist for changes.
+
 ### Live integration test (opt-in)
 
 `test/live_e2e/` runs a real Linear + real Codex smoke test, gated on
