@@ -33,6 +33,12 @@ let command =
          (optional int)
          ~aliases:[ "-port" ]
          ~doc:"PORT enable the HTTP dashboard on PORT"
+     and host =
+       flag
+         "--host"
+         (optional string)
+         ~aliases:[ "-host" ]
+         ~doc:"HOST bind the HTTP dashboard to HOST"
      and workflow_path =
        anon (maybe_with_default "./WORKFLOW.md" ("path-to-WORKFLOW.md" %: string))
      in
@@ -41,5 +47,5 @@ let command =
        | false ->
          Writer.write_line (force Writer.stderr) guardrails_banner;
          Deferred.Or_error.error_string "missing guardrails acknowledgement"
-       | true -> App.run ~workflow_path ~logs_root ~port ())
+       | true -> App.run ~workflow_path ~logs_root ~port ~host ())
 ;;
