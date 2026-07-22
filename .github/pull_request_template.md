@@ -19,4 +19,5 @@
 
 - [ ] `opam exec -- dune build && opam exec -- dune runtest`
 - [ ] `opam exec -- dune fmt` leaves no diff
+- [ ] Style self-review per [`AGENTS.md`](../AGENTS.md) § Before handoff
 - [ ] <!-- Additional targeted checks (list below) -->

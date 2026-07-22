@@ -145,6 +145,7 @@ Use exactly this structure:
 ### Acceptance Criteria
 
 - [ ] Criterion
+- [ ] Style self-review per `AGENTS.md` § Before handoff
 
 ### Validation
 
@@ -201,11 +202,16 @@ all OCaml tooling through that switch:
 - Test:    `opam exec -- dune runtest`   (inspect expect-test diffs before `dune promote`)
 - Format:  `opam exec -- dune fmt`
 
-Read `PLAN.md` for the architecture and layering, and follow the codebase's Jane Street
-OCaml conventions: `open! Core` (and `open! Async` where relevant), an `.mli` for every
-non-wrapper library module, the `ppx_jane` family, `Time_ns`/`Clock_ns`, `Or_error`
-threading, `ppx_jsonaf_conv` for JSON, and `[%string]`/`print_s` over `printf`. Match the
-style of the surrounding code.
+Two documents govern how you write code here — read both before you start, and do not rely
+on this prompt to restate them:
+
+- **`AGENTS.md`** — the coding and documentation style guide. It is the single source of
+  truth for conventions; a subdirectory with its own `AGENTS.md` overrides it locally.
+- **`PLAN.md`** — the architecture and library layering.
+
+Before you hand work off, run the **"Before handoff"** style review in `AGENTS.md` as a
+pass over your diff that is *separate* from your correctness review, and record that you
+did it in the workpad.
 
 ## Definition of done
 
@@ -214,15 +220,17 @@ style of the surrounding code.
    outstanding review feedback, if this is a rework pass.
 3. `opam exec -- dune build` and `opam exec -- dune runtest` both pass, and
    `opam exec -- dune fmt` leaves no diff.
-4. Commit to a branch named after the issue (for example
+4. You have run the `AGENTS.md` "Before handoff" style review over the diff, as a pass
+   separate from correctness, and ticked it in the workpad's Acceptance Criteria.
+5. Commit to a branch named after the issue (for example
    `{{ issue.identifier }}-short-description`), with a clear message that follows the repo's
    commit style and ends with the `Co-Authored-By: Claude ...` trailer.
-5. Push to `origin` (`--force-with-lease` if you rebased) and, if no PR exists yet, open one
+6. Push to `origin` (`--force-with-lease` if you rebased) and, if no PR exists yet, open one
    against `main` with `gh pr create`. Fill in **every** section of the repository's PR
    template (`.github/pull_request_template.md`): Context, TL;DR, Summary, Alternatives,
    Test Plan — `Alternatives` is where you record what you considered and rejected, and it
    is not optional. If a PR already exists, update its body rather than opening another.
-6. The workpad comment is current (plan ticked, `Notes`/`Confusions` written for a
+7. The workpad comment is current (plan ticked, `Notes`/`Confusions` written for a
    reviewer, `Review log` appended) and carries the PR URL. Then move the issue to
    **In Review**.
 
