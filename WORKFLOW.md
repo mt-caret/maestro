@@ -113,6 +113,56 @@ opam exec -- dune build && opam exec -- dune runtest
 - Once a branch has been rebased, push it with `git push --force-with-lease` (never a bare
   `--force`, which would clobber a concurrent push).
 
+## The workpad — your durable record
+
+Keep **exactly one** persistent comment per issue, marked with the header
+`## Maestro Workpad`, and **edit it in place** (`commentUpdate`) as you work. Never post a
+stream of progress comments, and never use the issue body for tracking.
+
+- Find it each pass by searching the issue's comments for that marker, **ignoring resolved
+  comments**. Reuse it if found; create it exactly once if not.
+- Reconcile it *before* making new edits: tick off what is already done and correct the
+  plan so it matches current scope.
+- `Notes` and `Confusions` are the record a human reads to understand *how* you worked —
+  the approach you took, decisions you made and why you rejected the alternatives, and
+  anything that surprised you or cost you time. Write them for a reviewer, not for
+  yourself.
+
+Use exactly this structure:
+
+````md
+## Maestro Workpad
+
+```text
+<hostname>:<abs-workspace-path>@<short-sha>
+```
+
+### Plan
+
+- [ ] 1\. Parent task
+  - [ ] 1.1 Child task
+
+### Acceptance Criteria
+
+- [ ] Criterion
+
+### Validation
+
+- [ ] targeted tests: `<command>`
+
+### Notes
+
+- <timestamp> approach taken, design decisions and why, anything surprising
+
+### Confusions
+
+- <only when something was genuinely ambiguous or cost you real time>
+
+### Review log
+
+- <timestamp> addressed feedback through <newest comment id/timestamp>; rebased onto <short-sha>
+````
+
 ## Addressing review feedback
 
 On a rework pass, gather **all** outstanding feedback before editing:
@@ -120,8 +170,9 @@ On a rework pass, gather **all** outstanding feedback before editing:
 - **PR review comments** (the primary channel):
   `gh pr view --comments`, `gh api repos/mt-caret/maestro/pulls/<n>/comments`, and
   `gh pr view --json reviews`.
-- **Linear comments** newer than your own last status comment, via `linear_graphql`:
-  `query { issue(id: "{{ issue.id }}") { comments { nodes { body createdAt user { displayName } } } } }`
+- **Linear comments** newer than the cursor in your workpad's `Review log`, via
+  `linear_graphql`:
+  `query { issue(id: "{{ issue.id }}") { comments { nodes { id body createdAt user { displayName } } } } }`
 
 Then:
 
@@ -129,10 +180,16 @@ Then:
    concretely why you are pushing back. Never silently skip one.
 2. Reply to (and resolve, where you can) each PR thread you addressed, so it is obvious
    what has been handled.
-3. Push the updated branch, then post **one** status comment on the Linear issue
-   summarizing the pass. That comment is your cursor — on the next pass, anything newer
-   than it is new feedback.
+3. Push the updated branch (`--force-with-lease` if you rebased), then update the workpad
+   in place: tick off the plan, add a `Notes` entry for what changed and why, and append a
+   `Review log` line recording the newest feedback you addressed and the commit you rebased
+   onto. **That `Review log` line is your cursor** — next pass, anything newer is new
+   feedback.
 4. Move the issue back to In Review.
+
+**If there is no outstanding feedback**, this pass is simply rebase-and-verify: confirm the
+branch is rebased onto current `main` and still green, record that in the workpad `Notes`
+and `Review log`, and return the issue to In Review without churning the code.
 
 ## Your workspace
 
@@ -161,10 +218,13 @@ style of the surrounding code.
    `{{ issue.identifier }}-short-description`), with a clear message that follows the repo's
    commit style and ends with the `Co-Authored-By: Claude ...` trailer.
 5. Push to `origin` (`--force-with-lease` if you rebased) and, if no PR exists yet, open one
-   against `main` with `gh pr create`, with a descriptive title and a body summarizing the
-   change and its test plan. If a PR already exists, update it rather than opening another.
-6. Post one status comment on the Linear issue (the PR URL on the first pass; what you
-   addressed on later ones) and move the issue to **In Review**.
+   against `main` with `gh pr create`. Fill in **every** section of the repository's PR
+   template (`.github/pull_request_template.md`): Context, TL;DR, Summary, Alternatives,
+   Test Plan — `Alternatives` is where you record what you considered and rejected, and it
+   is not optional. If a PR already exists, update its body rather than opening another.
+6. The workpad comment is current (plan ticked, `Notes`/`Confusions` written for a
+   reviewer, `Review log` appended) and carries the PR URL. Then move the issue to
+   **In Review**.
 
 ## Tracker interaction
 
@@ -179,8 +239,12 @@ move the issue from Todo to In Progress. Relevant team-MTA workflow state ids:
 
 Move a state with a mutation like:
 `mutation { issueUpdate(id: "{{ issue.id }}", input: { stateId: "<state-id>" }) { success } }`
-and comment with:
-`mutation { commentCreate(input: { issueId: "{{ issue.id }}", body: "<text>" }) { success } }`
+
+Create the workpad **once** with:
+`mutation { commentCreate(input: { issueId: "{{ issue.id }}", body: "<markdown>" }) { success comment { id } } }`
+
+and thereafter **edit that same comment in place** (never create a second one):
+`mutation { commentUpdate(id: "<comment-id>", input: { body: "<markdown>" }) { success } }`
 
 ## Rules
 
