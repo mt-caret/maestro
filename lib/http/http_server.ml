@@ -33,7 +33,29 @@ let method_not_allowed () =
     ~message:"Method not allowed"
 ;;
 
-let handle ~snapshot ~request_refresh (request : Http.Request.t) =
+let session_logs ~logs_root ~issue_identifier =
+  let dir =
+    logs_root
+    ^/ "sessions"
+    ^/ Maestro_workspace.Workspace.key ~identifier:issue_identifier
+  in
+  Monitor.try_with ~run:`Schedule (fun () -> Sys.readdir dir)
+  >>| function
+  | Error _ -> []
+  | Ok entries ->
+    Array.to_list entries
+    |> List.filter ~f:(String.is_suffix ~suffix:".log")
+    |> List.sort ~compare:(Fn.flip String.compare)
+    |> List.mapi ~f:(fun index name ->
+      { Presenter.Session_log.label =
+          (match index with
+           | 0 -> "latest"
+           | _ -> name)
+      ; path = Filename.concat dir name
+      })
+;;
+
+let handle ~snapshot ~request_refresh ~logs_root (request : Http.Request.t) =
   let meth = Http.Request.meth request in
   let path = Uri.path (Uri.of_string (Http.Request.resource request)) in
   match String.split path ~on:'/' |> List.filter ~f:(Fn.non String.is_empty) with
@@ -68,7 +90,8 @@ let handle ~snapshot ~request_refresh (request : Http.Request.t) =
     (match meth with
      | `GET ->
        let%bind snapshot = snapshot () in
-       (match Presenter.issue_payload snapshot ~issue_identifier with
+       let%bind codex_session_logs = session_logs ~logs_root ~issue_identifier in
+       (match Presenter.issue_payload snapshot ~issue_identifier ~codex_session_logs with
         | Some json -> respond_json json
         | None ->
           respond_error
@@ -79,7 +102,7 @@ let handle ~snapshot ~request_refresh (request : Http.Request.t) =
   | _ -> respond_error ~status:`Not_found ~code:"not_found" ~message:"Not found"
 ;;
 
-let start ~host ~port ~snapshot ~request_refresh =
+let start ~host ~port ~logs_root ~snapshot ~request_refresh =
   let where_to_listen =
     Tcp.Where_to_listen.bind_to
       (match Unix.Inet_addr.of_string host with
@@ -95,7 +118,7 @@ let start ~host ~port ~snapshot ~request_refresh =
         ~on_handler_error:`Ignore
         where_to_listen
         (fun ~body:(_ : Cohttp_async.Body.t) (_ : Socket.Address.Inet.t) request ->
-           handle ~snapshot ~request_refresh request))
+           handle ~snapshot ~request_refresh ~logs_root request))
   with
   | Ok server -> Ok { server }
   | Error exn -> Or_error.of_exn (Monitor.extract_exn exn)

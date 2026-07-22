@@ -5,7 +5,8 @@ open Maestro_observability
 
 let dashboard_url ~host ~port = [%string "http://%{host}:%{port#Int}/"]
 
-let maybe_start_http ~(config : Config.t) ~port_override ~host_override ~driver =
+let maybe_start_http ~(config : Config.t) ~port_override ~host_override ~logs_root ~driver
+  =
   let port =
     match port_override with
     | Some _ as port -> port
@@ -19,6 +20,7 @@ let maybe_start_http ~(config : Config.t) ~port_override ~host_override ~driver 
        Maestro_http.Http_server.start
          ~host
          ~port
+         ~logs_root
          ~snapshot:(fun () -> Driver.snapshot driver)
          ~request_refresh:(fun () -> Driver.request_refresh driver)
      with
@@ -62,11 +64,16 @@ let run ~workflow_path ~logs_root ~port ~host ?(memory_issues = fun () -> []) ()
     let%bind workflow = Workflow_store.current workflow_store in
     let config = workflow.config in
     let make_adapter tracker = Adapter_registry.build ~memory_issues tracker in
-    (match%bind Driver.start ~workflow_store ~make_adapter with
+    (match%bind Driver.start ~workflow_store ~make_adapter ~logs_root with
      | Error _ as error -> return error
      | Ok driver ->
        (match%bind
-          maybe_start_http ~config ~port_override:port ~host_override:host ~driver
+          maybe_start_http
+            ~config
+            ~port_override:port
+            ~host_override:host
+            ~logs_root
+            ~driver
         with
         | Error _ as error -> return error
         | Ok (http_server, url) ->

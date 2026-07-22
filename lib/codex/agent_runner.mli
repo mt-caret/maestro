@@ -22,6 +22,7 @@ open Maestro_tracker
     run — used by the orchestrator to terminate a worker on reconciliation. *)
 val run
   :  ?stop:unit Deferred.t
+  -> ?session_log_dir:string
   -> config:Maestro_workflow.Config.t
   -> workflow:Maestro_workflow.Workflow.Loaded.t
   -> adapter:Adapter.t

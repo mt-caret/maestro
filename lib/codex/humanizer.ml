@@ -13,6 +13,49 @@ let member_string name value =
   | _ -> None
 ;;
 
+let member_int name value =
+  match member name value with
+  | Some (`Number value) -> Int.of_string_opt value
+  | _ -> None
+;;
+
+let path value names =
+  List.fold names ~init:(Some value) ~f:(fun value name ->
+    Option.bind value ~f:(member name))
+;;
+
+let humanize_wrapper payload suffix =
+  let msg = Option.value (path payload [ "params"; "msg" ]) ~default:payload in
+  match suffix with
+  | "task_started" -> "task started"
+  | "user_message" -> "user message received"
+  | "agent_message_delta" | "agent_message_content_delta" -> "agent message streaming"
+  | "agent_reasoning_delta" | "reasoning_content_delta" -> "reasoning streaming"
+  | "exec_command_output_delta" -> "command output streaming"
+  | "exec_command_begin" ->
+    (match member_string "command" msg with
+     | Some command -> command
+     | None -> "command started")
+  | "exec_command_end" ->
+    (match
+       member_int "exit_code" msg |> Option.first_some (member_int "exitCode" msg)
+     with
+     | Some code -> [%string "command completed (exit %{code#Int})"]
+     | None -> "command completed")
+  | "token_count" ->
+    let usage = Option.value (member "usage" msg) ~default:msg in
+    (match
+       member_int "total_tokens" usage
+       |> Option.first_some (member_int "totalTokens" usage)
+     with
+     | Some total -> [%string "token count update (%{total#Int} total)"]
+     | None -> "token count update")
+  | "turn_diff" -> "turn diff updated"
+  | "mcp_tool_call_begin" -> "mcp tool call started"
+  | "mcp_tool_call_end" -> "mcp tool call completed"
+  | other -> other
+;;
+
 let strip_control text =
   String.filter text ~f:(fun c ->
     Char.equal c ' ' || (Char.to_int c >= 0x20 && Char.to_int c <> 0x7f))
@@ -38,6 +81,13 @@ let humanize_method payload ~method_ =
      | Some message -> [%string "turn failed: %{message}"]
      | None -> "turn failed")
   | "turn/cancelled" -> "turn cancelled"
+  | "turn/diff/updated" -> "turn diff updated"
+  | "item/agentMessage/delta" -> "agent message streaming"
+  | "item/plan/delta" -> "plan streaming"
+  | "item/reasoning/summaryTextDelta" | "item/reasoning/textDelta" ->
+    "reasoning streaming"
+  | "item/commandExecution/outputDelta" -> "command output streaming"
+  | "item/fileChange/outputDelta" -> "file change output streaming"
   | "item/commandExecution/requestApproval" ->
     (match member_string "command" params with
      | Some command -> [%string "approval requested: %{command}"]
@@ -47,6 +97,8 @@ let humanize_method payload ~method_ =
   | "mcpServer/elicitation/request" -> "MCP elicitation requested"
   | "thread/tokenUsage/updated" -> "token usage updated"
   | "account/rateLimits/updated" -> "rate limits updated"
+  | method_ when String.is_prefix method_ ~prefix:"codex/event/" ->
+    humanize_wrapper payload (String.chop_prefix_exn method_ ~prefix:"codex/event/")
   | other -> other
 ;;
 

@@ -80,6 +80,7 @@ let%expect_test "state_payload: generated_at, counts, rows, totals" =
           "last_message": null,
           "started_at": "1970-01-01T00:00:00.000000000Z",
           "last_event_at": null,
+          "recent_events": [],
           "workspace_path": null,
           "tokens": {
             "input_tokens": 0,
@@ -115,7 +116,9 @@ let%expect_test "issue_payload: found running, and 404 (None) for unknown" =
       (Tick { token = None })
   in
   let snapshot = Orchestrator.to_snapshot state ~config ~now in
-  (match Presenter.issue_payload snapshot ~issue_identifier:"MT-1" with
+  (match
+     Presenter.issue_payload snapshot ~issue_identifier:"MT-1" ~codex_session_logs:[]
+   with
    | None -> print_string "unexpected None\n"
    | Some json ->
      let status =
@@ -128,7 +131,8 @@ let%expect_test "issue_payload: found running, and 404 (None) for unknown" =
   [%expect {| (String running) |}];
   print_s
     [%sexp
-      (Presenter.issue_payload snapshot ~issue_identifier:"MT-404" : Jsonaf.t option)];
+      (Presenter.issue_payload snapshot ~issue_identifier:"MT-404" ~codex_session_logs:[]
+       : Jsonaf.t option)];
   [%expect {| () |}];
   return ()
 ;;

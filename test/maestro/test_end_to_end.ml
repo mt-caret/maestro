@@ -12,7 +12,7 @@ let fake_codex_script ~result_file =
   case "$line" in
     *'"method":"initialize"'*) printf '%s\n' '{"id":1,"result":{}}' ;;
     *'"method":"initialized"'*) : ;;
-    *'"method":"thread/start"'*) printf '%s\n' '{"id":2,"result":{"thread":{"id":"th-1"}}}' ;;
+    *'"method":"thread/start"'*) printf '%s\n' '{"id":2,"result":{"thread":{"id":"th-1"}}}'; printf '%s\n' 'diagnostic' >&2 ;;
     *'"method":"turn/start"'*) printf '%s\n' '{"id":3,"result":{"turn":{"id":"tu-1"}}}'; printf 'done\n' > "%{result_file}"; printf '%s\n' '{"method":"turn/completed"}' ;;
   esac
 done|}]
@@ -74,7 +74,7 @@ Work on {{ issue.identifier }}.|}]
       >>| ok_exn
     in
     let%bind driver =
-      Driver.start ~workflow_store:store ~make_adapter:(fun tracker ->
+      Driver.start ~workflow_store:store ~logs_root:dir ~make_adapter:(fun tracker ->
         Adapter_registry.build ~memory_issues:(fun () -> !board) tracker)
       >>| ok_exn
     in
@@ -90,6 +90,43 @@ Work on {{ issue.identifier }}.|}]
     let%bind proof = Reader.file_contents result_file in
     print_s [%message "proof of work written" (proof : string)];
     [%expect {| ("proof of work written" (proof "done\n")) |}];
+    let session_dir = dir ^/ "sessions" ^/ "MT-1" in
+    let%bind log_path =
+      Deferred.repeat_until_finished () (fun () ->
+        match%bind Monitor.try_with (fun () -> Sys.readdir session_dir) with
+        | Ok entries when Array.length entries > 0 ->
+          return (`Finished (session_dir ^/ entries.(0)))
+        | Ok _ | Error _ ->
+          let%map () = Clock_ns.after (Time_ns.Span.of_int_ms 20) in
+          `Repeat ())
+    in
+    let%bind log_contents = Reader.file_contents log_path in
+    print_s
+      [%message
+        "session transcript"
+          ~has_protocol:
+            (String.is_substring log_contents ~substring:"server\t{\"id\":2" : bool)
+          ~has_stderr:
+            (String.is_substring log_contents ~substring:"stderr\tdiagnostic" : bool)];
+    [%expect {| ("session transcript" (has_protocol true) (has_stderr true)) |}];
+    let%bind snapshot = Driver.snapshot driver in
+    let payload =
+      Maestro_observability.Presenter.issue_payload
+        snapshot
+        ~issue_identifier:"MT-1"
+        ~codex_session_logs:
+          [ { Maestro_observability.Presenter.Session_log.label = "latest"
+            ; path = log_path
+            }
+          ]
+      |> Option.value_exn
+      |> Jsonaf.to_string
+    in
+    print_s
+      [%message
+        "session referenced"
+          ~referenced:(String.is_substring payload ~substring:log_path : bool)];
+    [%expect {| ("session referenced" (referenced true)) |}];
     (* The issue reaches Done; drive a refresh so reconciliation cleans it up. Give the
        worker a moment to exit and the continuation retry to release it. *)
     board := [ issue ~id:"a" ~identifier:"MT-1" ~state:"Done" ];

@@ -32,10 +32,13 @@ end
 
 (** Launches [codex.command] via [bash -lc] in [workspace] (already containment-validated
     by the caller), runs the initialize/thread-start handshake, and advertises the
-    adapter's tool specs. Each awaited response is bounded by [codex.read_timeout]. *)
+    adapter's tool specs. Each awaited response is bounded by [codex.read_timeout]. When
+    [session_log_dir] is present, the client records client/server protocol lines and
+    stderr there. Capture and retention failures are ignored. *)
 val start_session
   :  config:Maestro_workflow.Config.t
   -> workspace:string
+  -> session_log_dir:string option
   -> adapter:Adapter.t
   -> on_update:(Update.t -> unit)
   -> Session.t Deferred.Or_error.t
