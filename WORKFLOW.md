@@ -39,6 +39,11 @@ hooks:
       --repos ox=git+https://github.com/oxcaml/opam-repository.git,default \
       --no-install --assume-depexts
     opam install . --locked --deps-only --with-test --assume-depexts
+  # Refresh remote refs before every attempt so the agent's rebase onto origin/main picks
+  # up branches merged while this issue was in flight. Non-fatal: a transient network blip
+  # must not abort the attempt (the agent fetches again itself).
+  before_run: |
+    git fetch --prune origin || true
 
 agent:
   # Builds are heavy; keep concurrency modest.
@@ -69,8 +74,65 @@ Symphony coding-agent orchestration spec. You have been assigned {{ issue.identi
 {{ issue.description }}
 {% else %}No description was provided; infer the scope from the title and the codebase.{% endif %}
 
-{% if attempt %}This is follow-up attempt {{ attempt }}. Resume from the existing workspace
-and your in-progress branch — do not start over or re-clone.{% endif %}
+## Orient before you act
+
+You may be starting this issue fresh, or resuming it after human review. Determine which
+**from the workspace, not from any attempt counter** (a re-activated issue arrives as a
+fresh dispatch, so `attempt` will often be empty even on a rework pass):
+
+```
+git status && git branch --all
+gh pr list --head <your-branch> --state all
+```
+
+- **No branch or PR for this issue** → fresh start; implement it.
+- **A branch and/or open PR exists** → this is a **rework pass**. Do not re-clone, do not
+  start over, and do not open a second PR: resume that branch and go to *Addressing review
+  feedback* below.
+- **The work is already merged into `main`** (check `git log origin/main` and the PR state)
+  → do not redo it; comment saying so and move the issue to In Review.
+
+## Sync with main before you change anything
+
+Other issues are worked in parallel, so `main` moves while your branch is open. On **every**
+pass, before writing code:
+
+```
+git fetch --prune origin
+git rebase --autostash origin/main      # while on your work branch
+opam exec -- dune build && opam exec -- dune runtest
+```
+
+- Rebase **first**, before making new edits — that keeps PR review comments anchored to
+  lines that still exist and avoids a second force-push later in the pass.
+- **Resolve conflicts yourself.** Understand both sides: yours and whatever landed on
+  `main`. If a conflict is genuinely beyond you, `git rebase --abort`, then move the issue
+  to In Review with a comment naming the conflicting files and what is ambiguous.
+- **Re-run build and tests after rebasing** even if you changed nothing — a change merged
+  from another branch can break yours, and that is yours to fix.
+- Once a branch has been rebased, push it with `git push --force-with-lease` (never a bare
+  `--force`, which would clobber a concurrent push).
+
+## Addressing review feedback
+
+On a rework pass, gather **all** outstanding feedback before editing:
+
+- **PR review comments** (the primary channel):
+  `gh pr view --comments`, `gh api repos/mt-caret/maestro/pulls/<n>/comments`, and
+  `gh pr view --json reviews`.
+- **Linear comments** newer than your own last status comment, via `linear_graphql`:
+  `query { issue(id: "{{ issue.id }}") { comments { nodes { body createdAt user { displayName } } } } }`
+
+Then:
+
+1. Treat every unresolved item as **blocking**: either fix it, or reply explaining
+   concretely why you are pushing back. Never silently skip one.
+2. Reply to (and resolve, where you can) each PR thread you addressed, so it is obvious
+   what has been handled.
+3. Push the updated branch, then post **one** status comment on the Linear issue
+   summarizing the pass. That comment is your cursor — on the next pass, anything newer
+   than it is new feedback.
+4. Move the issue back to In Review.
 
 ## Your workspace
 
@@ -90,15 +152,19 @@ style of the surrounding code.
 
 ## Definition of done
 
-1. Implement the change the issue asks for, and nothing out of scope.
-2. `opam exec -- dune build` and `opam exec -- dune runtest` both pass, and
+1. Your branch is rebased onto the current `origin/main` (see above).
+2. Implement the change the issue asks for, and nothing out of scope — plus every piece of
+   outstanding review feedback, if this is a rework pass.
+3. `opam exec -- dune build` and `opam exec -- dune runtest` both pass, and
    `opam exec -- dune fmt` leaves no diff.
-3. Commit to a new branch named after the issue (for example
+4. Commit to a branch named after the issue (for example
    `{{ issue.identifier }}-short-description`), with a clear message that follows the repo's
    commit style and ends with the `Co-Authored-By: Claude ...` trailer.
-4. Push the branch to `origin` and open a GitHub PR against `main` with `gh pr create`,
-   giving it a descriptive title and a body that summarizes the change and its test plan.
-5. Move this Linear issue to **In Review** and post the PR URL as a comment on the issue.
+5. Push to `origin` (`--force-with-lease` if you rebased) and, if no PR exists yet, open one
+   against `main` with `gh pr create`, with a descriptive title and a body summarizing the
+   change and its test plan. If a PR already exists, update it rather than opening another.
+6. Post one status comment on the Linear issue (the PR URL on the first pass; what you
+   addressed on later ones) and move the issue to **In Review**.
 
 ## Tracker interaction
 
