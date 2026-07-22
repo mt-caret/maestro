@@ -1,0 +1,14 @@
+(library
+ (name maestro_web)
+ (modules dashboard app)
+ (libraries
+  core
+  async_kernel
+  async_js
+  bonsai
+  bonsai_web
+  jsonaf
+  maestro_snapshot
+  uri)
+ (preprocess
+  (pps ppx_jane ppx_jsonaf_conv bonsai.ppx_bonsai js_of_ocaml-ppx)))

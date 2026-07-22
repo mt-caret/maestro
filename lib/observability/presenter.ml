@@ -1,30 +1,24 @@
 open! Core
 open! Jsonaf.Export
 open Maestro_orchestrator
+module Http_api = Maestro_snapshot.Http_api
 
 let time t = `String (Time_ns.to_string_iso8601_basic t ~zone:Time_float.Zone.utc)
-let int n = `Number (Int.to_string n)
-
-let string_or_null = function
-  | Some s -> `String s
-  | None -> `Null
-;;
 
 let state_payload (snapshot : Snapshot.t) ~generated_at =
-  `Object
-    [ "generated_at", time generated_at
-    ; ( "counts"
-      , `Object
-          [ "running", int (List.length snapshot.running)
-          ; "retrying", int (List.length snapshot.retrying)
-          ; "blocked", int (List.length snapshot.blocked)
-          ] )
-    ; "running", `Array (List.map snapshot.running ~f:[%jsonaf_of: Snapshot.Running.t])
-    ; "retrying", `Array (List.map snapshot.retrying ~f:[%jsonaf_of: Snapshot.Retrying.t])
-    ; "blocked", `Array (List.map snapshot.blocked ~f:[%jsonaf_of: Snapshot.Blocked.t])
-    ; "codex_totals", [%jsonaf_of: Snapshot.Codex_totals.t] snapshot.codex_totals
-    ; "rate_limits", Option.value snapshot.rate_limits ~default:`Null
-    ]
+  Http_api.State.jsonaf_of_t
+    { generated_at
+    ; counts =
+        { running = List.length snapshot.running
+        ; retrying = List.length snapshot.retrying
+        ; blocked = List.length snapshot.blocked
+        }
+    ; running = snapshot.running
+    ; retrying = snapshot.retrying
+    ; blocked = snapshot.blocked
+    ; codex_totals = snapshot.codex_totals
+    ; rate_limits = snapshot.rate_limits
+    }
 ;;
 
 let issue_payload (snapshot : Snapshot.t) ~issue_identifier =
@@ -60,23 +54,18 @@ let issue_payload (snapshot : Snapshot.t) ~issue_identifier =
       |> Option.value ~default:issue_identifier
     in
     Some
-      (`Object
-        [ "issue_identifier", `String issue_identifier
-        ; "issue_id", `String issue_id
-        ; "status", `String status
-        ; ( "running"
-          , Option.value_map running ~default:`Null ~f:[%jsonaf_of: Snapshot.Running.t] )
-        ; ( "retry"
-          , Option.value_map retrying ~default:`Null ~f:[%jsonaf_of: Snapshot.Retrying.t]
-          )
-        ; ( "blocked"
-          , Option.value_map blocked ~default:`Null ~f:[%jsonaf_of: Snapshot.Blocked.t] )
-        ; ( "last_error"
-          , string_or_null
-              (Option.first_some
-                 (Option.bind blocked ~f:(fun b -> b.error))
-                 (Option.bind retrying ~f:(fun r -> r.error))) )
-        ])
+      (Http_api.Detail.jsonaf_of_t
+         { issue_identifier
+         ; issue_id
+         ; status
+         ; running
+         ; retry = retrying
+         ; blocked
+         ; last_error =
+             Option.first_some
+               (Option.bind blocked ~f:(fun b -> b.error))
+               (Option.bind retrying ~f:(fun r -> r.error))
+         })
 ;;
 
 let refresh_response ~queued ~coalesced ~requested_at =

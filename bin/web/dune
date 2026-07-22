@@ -1,0 +1,9 @@
+(executable
+ (name web_app)
+ (modes js)
+ (libraries maestro_web)
+ (js_of_ocaml
+  (flags
+   (:standard --effects=cps --opt=3)))
+ (preprocess
+  (pps ppx_jane bonsai.ppx_bonsai js_of_ocaml-ppx)))

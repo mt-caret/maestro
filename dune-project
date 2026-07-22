@@ -33,7 +33,10 @@
   sha
   bonsai
   bonsai_term
+  bonsai_web
+  js_of_ocaml
   (ppx_tydi :with-test)
   (bonsai_term_test :with-test)
+  (bonsai_web_test :with-test)
   (expect_test_helpers_core :with-test)
   (expect_test_helpers_async :with-test)))

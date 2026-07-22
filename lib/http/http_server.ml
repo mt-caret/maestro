@@ -14,6 +14,11 @@ type t = { server : (Socket.Address.Inet.t, int) Server.t }
 let json_headers = Http.Header.of_list [ "content-type", "application/json" ]
 let html_headers = Http.Header.of_list [ "content-type", "text/html; charset=utf-8" ]
 
+let javascript_headers =
+  Http.Header.of_list
+    [ "content-type", "text/javascript; charset=utf-8"; "content-encoding", "gzip" ]
+;;
+
 let respond_json ?(status = `OK) json =
   Server.respond_string ~headers:json_headers ~status (Jsonaf.to_string json)
 ;;
@@ -40,6 +45,11 @@ let handle ~snapshot ~request_refresh (request : Http.Request.t) =
   | [] ->
     (match meth with
      | `GET -> Server.respond_string ~headers:html_headers Dashboard_page.html
+     | _ -> method_not_allowed ())
+  | [ "assets"; "dashboard.js" ] ->
+    (match meth with
+     | `GET ->
+       Server.respond_string ~headers:javascript_headers Dashboard_page.javascript_gzip
      | _ -> method_not_allowed ())
   | [ "api"; "v1"; "state" ] ->
     (match meth with

@@ -11,3 +11,17 @@
   maestro_observability)
  (preprocess
   (pps ppx_jane)))
+
+(rule
+ (target web_app.bc.js.gz)
+ (deps ../../bin/web/web_app.bc.js)
+ (action
+  (with-stdout-to
+   %{target}
+   (run gzip -9 -c %{deps}))))
+
+(rule
+ (targets dashboard_bundle.ml dashboard_bundle.mli)
+ (deps web_app.bc.js.gz)
+ (action
+  (run ocaml-embed-file -output Dashboard_bundle -output-dir . %{deps})))
