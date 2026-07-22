@@ -99,6 +99,8 @@ Load the matching canonical procedure when its trigger occurs:
 - At the start of every pass, follow `docs/procedures/starting-a-pass.md`.
 - When recording or reconciling progress, follow `docs/procedures/maintaining-the-workpad.md`.
 - On a rework pass, follow `docs/procedures/addressing-review-feedback.md`.
+- When authoring or reviewing source with CR comments, follow
+  `docs/procedures/cr-conversations.md`.
 - When work is ready, follow `docs/procedures/handing-off-a-pr.md`.
 
 These files contain the operational commands and are the sole source of procedure. Do not infer a
