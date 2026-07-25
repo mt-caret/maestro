@@ -29,6 +29,11 @@ upstream code. Follow the more specific conventions in a subdirectory if it has 
   code.
 - Update nearby documentation when a behavior, interface, or operational requirement changes.
 
+## Dependencies
+
+- After changing dependencies in `maestro.opam`, regenerate `maestro.opam.locked` with
+  `opam lock ./maestro.opam` and commit both files.
+
 ## Before handoff
 
 Review the diff once for style, separate from the correctness review:
