@@ -404,9 +404,9 @@ let handle_worker_exit
            ~workspace_path:entry.workspace_path
        in
        state, effects @ [ Effect.Notify ]
-     | Completed, true -> block "codex turn requires operator input"
+     | Completed, true -> block "agent turn requires operator input"
      | Failed reason, true ->
-       block [%string "codex turn requires operator input (%{reason})"]
+       block [%string "agent turn requires operator input (%{reason})"]
      | Failed reason, false ->
        let attempt =
          match entry.retry_attempt > 0 with
@@ -456,82 +456,86 @@ let terminate_running (state : State.t) ~now ~issue_id ~cleanup_workspace =
     state, Effect.Stop_worker { issue_id } :: cleanup
 ;;
 
-let stall_timeout (config : Config.t) = config.codex.stall_timeout
+let stall_timeout (config : Config.t) issue =
+  match Maestro_codex.Agent_runner.Backend.for_issue ~config issue with
+  | Codex -> config.codex.stall_timeout
+  | Claude_code -> config.claude_code.stall_timeout
+;;
 
 let reconcile_stalled (state : State.t) ~(config : Config.t) ~now =
-  match stall_timeout config with
-  | None -> state, []
-  | Some timeout ->
-    Map.fold
-      state.running
-      ~init:(state, [])
-      ~f:(fun ~key:issue_id ~data:entry (state, effects) ->
+  Map.fold
+    state.running
+    ~init:(state, [])
+    ~f:(fun ~key:issue_id ~data:entry (state, effects) ->
+      match stall_timeout config entry.issue with
+      | None -> state, effects
+      | Some timeout ->
         (* Skip issues already terminated earlier in this fold. *)
-        match Map.mem state.running issue_id with
-        | false -> state, effects
-        | true ->
-          let since = Option.value entry.last_timestamp ~default:entry.started_at in
-          let elapsed = Time_ns.diff now since in
-          (match Time_ns.Span.( > ) elapsed timeout with
-           | false -> state, effects
-           | true ->
-             let state, more =
-               match entry_input_blocked entry with
-               | true ->
-                 (* Stalled waiting on input: block rather than retry. *)
-                 let state', _ =
-                   terminate_running state ~now ~issue_id ~cleanup_workspace:false
-                 in
-                 let blocked_entry =
-                   { Blocked_entry.identifier = entry.identifier
-                   ; issue = entry.issue
-                   ; workspace_path = entry.workspace_path
-                   ; session_id = entry.session_id
-                   ; error = Some "codex requested operator input; stalled"
-                   ; blocked_at = now
-                   ; last_event = entry.last_event
-                   ; last_message = entry.last_message
-                   ; last_timestamp = entry.last_timestamp
-                   }
-                 in
-                 ( { state' with
-                     blocked = Map.set state'.blocked ~key:issue_id ~data:blocked_entry
-                   ; claimed = Set.add state'.claimed issue_id
-                   }
-                 , [ Effect.Stop_worker { issue_id } ] )
-               | false ->
-                 let state, term_effects =
-                   terminate_running state ~now ~issue_id ~cleanup_workspace:false
-                 in
-                 let attempt =
-                   match entry.retry_attempt > 0 with
-                   | true -> entry.retry_attempt + 1
-                   | false -> 1
-                 in
-                 let delay =
-                   Dispatch_policy.failure_backoff
-                     ~attempt
-                     ~cap:config.agent.max_retry_backoff
-                 in
-                 let state, retry_effects =
-                   schedule_retry
-                     state
-                     ~issue_id
-                     ~attempt
-                     ~delay
-                     ~now
-                     ~identifier:entry.identifier
-                     ~issue_url:entry.issue.url
-                     ~error:
-                       (Some
-                          [%string
-                            "stalled for %{Time_ns.Span.to_string_hum elapsed} without \
-                             codex activity"])
-                     ~workspace_path:entry.workspace_path
-                 in
-                 state, term_effects @ retry_effects
-             in
-             state, effects @ more))
+        (match Map.mem state.running issue_id with
+         | false -> state, effects
+         | true ->
+           let since = Option.value entry.last_timestamp ~default:entry.started_at in
+           let elapsed = Time_ns.diff now since in
+           (match Time_ns.Span.( > ) elapsed timeout with
+            | false -> state, effects
+            | true ->
+              let state, more =
+                match entry_input_blocked entry with
+                | true ->
+                  (* Stalled waiting on input: block rather than retry. *)
+                  let state', _ =
+                    terminate_running state ~now ~issue_id ~cleanup_workspace:false
+                  in
+                  let blocked_entry =
+                    { Blocked_entry.identifier = entry.identifier
+                    ; issue = entry.issue
+                    ; workspace_path = entry.workspace_path
+                    ; session_id = entry.session_id
+                    ; error = Some "agent requested operator input; stalled"
+                    ; blocked_at = now
+                    ; last_event = entry.last_event
+                    ; last_message = entry.last_message
+                    ; last_timestamp = entry.last_timestamp
+                    }
+                  in
+                  ( { state' with
+                      blocked = Map.set state'.blocked ~key:issue_id ~data:blocked_entry
+                    ; claimed = Set.add state'.claimed issue_id
+                    }
+                  , [ Effect.Stop_worker { issue_id } ] )
+                | false ->
+                  let state, term_effects =
+                    terminate_running state ~now ~issue_id ~cleanup_workspace:false
+                  in
+                  let attempt =
+                    match entry.retry_attempt > 0 with
+                    | true -> entry.retry_attempt + 1
+                    | false -> 1
+                  in
+                  let delay =
+                    Dispatch_policy.failure_backoff
+                      ~attempt
+                      ~cap:config.agent.max_retry_backoff
+                  in
+                  let state, retry_effects =
+                    schedule_retry
+                      state
+                      ~issue_id
+                      ~attempt
+                      ~delay
+                      ~now
+                      ~identifier:entry.identifier
+                      ~issue_url:entry.issue.url
+                      ~error:
+                        (Some
+                           [%string
+                             "stalled for %{Time_ns.Span.to_string_hum elapsed} without \
+                              agent activity"])
+                      ~workspace_path:entry.workspace_path
+                  in
+                  state, term_effects @ retry_effects
+              in
+              state, effects @ more)))
 ;;
 
 let reconcile_running_refresh (state : State.t) ~(config : Config.t) ~now ~refreshed =

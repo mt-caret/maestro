@@ -60,14 +60,34 @@ module Hooks : sig
 end
 
 module Agent : sig
+  module Backend : sig
+    type t =
+      | Codex
+      | Claude_code
+    [@@deriving sexp_of, equal]
+  end
+
   type t =
-    { max_concurrent_agents : int (** Default 10; positive. *)
+    { backend : Backend.t (** Default [Codex]. *)
+    ; max_concurrent_agents : int (** Default 10; positive. *)
     ; max_turns : int (** Default 20; positive. *)
     ; max_retry_backoff : Time_ns.Span.t (** Default 5m; positive. *)
     ; max_concurrent_agents_by_state : int String.Map.t
     (** Keys normalized via [normalize_state_name]. Invalid entries (blank key,
         non-positive or non-integer limit) are ignored per SPEC §5.3.5 and reported in
         [warnings] (diverges from the reference, which rejects them). *)
+    }
+  [@@deriving sexp_of]
+end
+
+module Claude_code : sig
+  type t =
+    { command : string
+    ; permission_mode : string
+    ; allowed_tools : string list
+    ; mcp_config : Jsonaf.t option
+    ; turn_timeout : Time_ns.Span.t
+    ; stall_timeout : Time_ns.Span.t option
     }
   [@@deriving sexp_of]
 end
@@ -116,6 +136,7 @@ type t =
   ; hooks : Hooks.t
   ; agent : Agent.t
   ; codex : Codex.t
+  ; claude_code : Claude_code.t
   ; observability : Observability.t
   ; server : Server.t
   ; warnings : Error.t list

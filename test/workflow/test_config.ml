@@ -36,8 +36,8 @@ Test workflow.|};
       ((after_create ()) (before_run ()) (after_run ()) (before_remove ())
        (timeout 1m)))
      (agent
-      ((max_concurrent_agents 10) (max_turns 20) (max_retry_backoff 5m)
-       (max_concurrent_agents_by_state ())))
+      ((backend Codex) (max_concurrent_agents 10) (max_turns 20)
+       (max_retry_backoff 5m) (max_concurrent_agents_by_state ())))
      (codex
       ((command "codex app-server")
        (approval_policy
@@ -47,6 +47,9 @@ Test workflow.|};
             ((sandbox_approval True) (rules True) (mcp_elicitations True)))))))
        (thread_sandbox workspace-write) (turn_sandbox_policy ())
        (turn_timeout 1h) (read_timeout 5s) (stall_timeout (5m))))
+     (claude_code
+      ((command claude) (permission_mode bypassPermissions) (allowed_tools ())
+       (mcp_config ()) (turn_timeout 1h) (stall_timeout (5m))))
      (observability ((dashboard_enabled true) (refresh 1s)))
      (server ((port ()) (host 127.0.0.1))) (warnings ()))
     |}]
@@ -87,8 +90,8 @@ let%expect_test "front-matter structure errors" =
       ((after_create ()) (before_run ()) (after_run ()) (before_remove ())
        (timeout 1m)))
      (agent
-      ((max_concurrent_agents 10) (max_turns 20) (max_retry_backoff 5m)
-       (max_concurrent_agents_by_state ())))
+      ((backend Codex) (max_concurrent_agents 10) (max_turns 20)
+       (max_retry_backoff 5m) (max_concurrent_agents_by_state ())))
      (codex
       ((command "codex app-server")
        (approval_policy
@@ -98,6 +101,9 @@ let%expect_test "front-matter structure errors" =
             ((sandbox_approval True) (rules True) (mcp_elicitations True)))))))
        (thread_sandbox workspace-write) (turn_sandbox_policy ())
        (turn_timeout 1h) (read_timeout 5s) (stall_timeout (5m))))
+     (claude_code
+      ((command claude) (permission_mode bypassPermissions) (allowed_tools ())
+       (mcp_config ()) (turn_timeout 1h) (stall_timeout (5m))))
      (observability ((dashboard_enabled true) (refresh 1s)))
      (server ((port ()) (host 127.0.0.1))) (warnings ()))
     |}];
@@ -182,14 +188,17 @@ Prompt body.|};
         ("cd elixir && mise exec -- mix workspace.before_remove\n"))
        (timeout 1m)))
      (agent
-      ((max_concurrent_agents 10) (max_turns 20) (max_retry_backoff 5m)
-       (max_concurrent_agents_by_state ())))
+      ((backend Codex) (max_concurrent_agents 10) (max_turns 20)
+       (max_retry_backoff 5m) (max_concurrent_agents_by_state ())))
      (codex
       ((command "codex --config shell_environment_policy.inherit=all app-server")
        (approval_policy (String never)) (thread_sandbox workspace-write)
        (turn_sandbox_policy
         ((Object ((type (String workspaceWrite)) (networkAccess True)))))
        (turn_timeout 1h) (read_timeout 5s) (stall_timeout (5m))))
+     (claude_code
+      ((command claude) (permission_mode bypassPermissions) (allowed_tools ())
+       (mcp_config ()) (turn_timeout 1h) (stall_timeout (5m))))
      (observability ((dashboard_enabled true) (refresh 1s)))
      (server ((port ()) (host 127.0.0.1))) (warnings ()))
     |}]

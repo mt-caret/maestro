@@ -3,7 +3,7 @@
 An [OxCaml](https://oxcaml.org) implementation of the
 [Symphony](https://github.com/openai/symphony) service specification: a long-running daemon
 that reads work from an issue tracker, creates an isolated per-issue workspace, and runs a
-Codex coding-agent session for that issue inside the workspace, with bounded concurrency,
+a Codex or Claude Code session for that issue inside the workspace, with bounded concurrency,
 retries, reconciliation, structured logs, an HTTP observability API, and an interactive
 terminal dashboard.
 
@@ -13,8 +13,8 @@ The spec and its reference Elixir implementation are vendored as a git submodule
 [`PLAN.md`](PLAN.md).
 
 > **Trust posture.** maestro targets **trusted environments**. It passes the approval and
-> sandbox policy from `WORKFLOW.md` through to Codex verbatim; client-side auto-approval
-> happens only when `codex.approval_policy` is the literal string `"never"`.
+> sandbox or permission policy from `WORKFLOW.md` through to the selected agent. Codex
+> client-side auto-approval happens only when `codex.approval_policy` is `"never"`.
 > User-input-required turns never stall — they end the run and park the issue as *blocked*
 > until an operator intervenes. Workspace containment and sanitized keys are enforced
 > before every launch, and tracker credentials are resolved host-side and scrubbed from the
@@ -135,6 +135,32 @@ Verified end-to-end against real Linear + a real `codex` binary. Two things to c
 The `linear_graphql` tool runs host-side with maestro's credential, so tracker writes
 (state transitions, comments) work regardless of the codex sandbox.
 
+## Agent backends
+
+Set `agent.backend` to `codex` (the default) or `claude_code`. The normalized Linear label
+`agent:codex` or `agent:claude` overrides that default for one issue. If both labels are
+present, `agent:claude` wins.
+
+Codex uses the persistent app-server protocol. Claude Code starts one `claude -p` process
+per turn and resumes later turns with the session id from its `system/init` event. Configure
+its unattended posture under `claude_code`:
+
+```yaml
+agent:
+  backend: claude_code
+claude_code:
+  command: claude
+  permission_mode: bypassPermissions
+  allowed_tools: [mcp__maestro__linear_graphql]
+  turn_timeout_ms: 3600000
+  stall_timeout_ms: 300000
+```
+
+Maestro adds its provider tools to `--mcp-config` through a credential-free stdio proxy;
+the adapter callback and its credential stay in the host process. An optional `mcp_config`
+map adds other servers. `allowed_tools` is passed to `--allowedTools`. Maestro removes
+tracker credential variables from both agent processes.
+
 ## Tracker adapters
 
 ### `memory`
@@ -164,7 +190,8 @@ An in-memory adapter for tests and local experiments; serves a fixed issue list,
 - **Malformed records**: dropped (and logged) on candidate polls; a malformed *requested*
   record fails an id-refresh.
 - **Provider-native tool**: `linear_graphql` — a raw GraphQL query/mutation executed
-  host-side with the configured credential, advertised to the Codex session. Full mutation
+  host-side with the configured credential, advertised to Codex as a dynamic tool and to
+  Claude Code through the configured MCP server. Full mutation
   capability by design; scope guards and idempotency are the workflow's responsibility. The
   child never sees the token, only tool results.
 - **Error categories**: config/auth (`missing_linear_api_token`, `missing_linear_project_slug`,

@@ -4,6 +4,49 @@ open Maestro_workflow
 open Maestro_tracker
 open Maestro_workspace
 
+module Backend = struct
+  type t = Config.Agent.Backend.t =
+    | Codex
+    | Claude_code
+  [@@deriving sexp_of, equal]
+
+  let for_issue ~(config : Config.t) (issue : Issue.t) =
+    let labels = String.Set.of_list issue.labels in
+    if Set.mem labels "agent:claude"
+    then Claude_code
+    else if Set.mem labels "agent:codex"
+    then Codex
+    else config.agent.backend
+  ;;
+end
+
+module Session = struct
+  type t =
+    | Codex of App_server.Session.t
+    | Claude_code of Claude_code.Session.t
+end
+
+let start_session backend ~config ~workspace ~adapter ~on_update =
+  match backend with
+  | Backend.Codex ->
+    App_server.start_session ~config ~workspace ~adapter ~on_update
+    >>| Or_error.map ~f:(fun session -> Session.Codex session)
+  | Claude_code ->
+    Claude_code.start_session ~config ~workspace ~adapter ~on_update
+    >>| Or_error.map ~f:(fun session -> Session.Claude_code session)
+;;
+
+let run_turn session ~prompt ~issue =
+  match session with
+  | Session.Codex session -> App_server.run_turn session ~prompt ~issue
+  | Claude_code session -> Claude_code.run_turn session ~prompt ~issue
+;;
+
+let stop_session = function
+  | Session.Codex session -> App_server.stop_session session
+  | Claude_code session -> Claude_code.stop_session session
+;;
+
 let state_active (config : Config.t) state =
   let active =
     Option.value config.tracker.active_states ~default:[]
@@ -30,7 +73,7 @@ let run_turns
         Deferred.Or_error.return
           (Prompt_builder.continuation_prompt ~turn_number ~max_turns)
     in
-    let%bind.Deferred.Or_error () = App_server.run_turn session ~prompt ~issue in
+    let%bind.Deferred.Or_error () = run_turn session ~prompt ~issue in
     (* Re-check the tracker after each normal turn: continue on the same live thread while
        the issue stays active and routable (SPEC §7.1). *)
     match%bind.Deferred.Or_error
@@ -75,6 +118,7 @@ let run
   | Error _ as error -> return error
   | Ok created ->
     let%tydi { Workspace.Created.path = workspace; created_now = _ } = created in
+    let backend = Backend.for_issue ~config issue in
     on_runtime_info ~workspace_path:workspace;
     let run_hooked () =
       let%bind.Deferred.Or_error () =
@@ -83,7 +127,7 @@ let run
         | Some script ->
           Hook.run ~name:"before_run" ~script ~workspace ~timeout:hooks.timeout
       in
-      match%bind App_server.start_session ~config ~workspace ~adapter ~on_update with
+      match%bind start_session backend ~config ~workspace ~adapter ~on_update with
       | Error _ as error -> return error
       | Ok session ->
         (* Race the turn loop against an external stop (reconciliation terminating this
@@ -94,7 +138,7 @@ let run
             ; (stop >>| fun () -> Or_error.error_s [%message "stopped_by_orchestrator"])
             ]
         in
-        let%map () = App_server.stop_session session in
+        let%map () = stop_session session in
         result
     in
     let%bind result = run_hooked () in

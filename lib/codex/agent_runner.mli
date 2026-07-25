@@ -18,6 +18,17 @@ open! Core
 open! Async
 open Maestro_tracker
 
+module Backend : sig
+  type t = Maestro_workflow.Config.Agent.Backend.t =
+    | Codex
+    | Claude_code
+  [@@deriving sexp_of, equal]
+
+  (** Backend labels override the workflow default. [agent:claude] takes precedence if
+      both labels are present. *)
+  val for_issue : config:Maestro_workflow.Config.t -> Issue.t -> t
+end
+
 (** [stop], when determined, stops the live session (killing the subprocess) and ends the
     run — used by the orchestrator to terminate a worker on reconciliation. *)
 val run

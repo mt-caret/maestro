@@ -26,8 +26,8 @@ A single-process daemon that: loads a repo-owned `WORKFLOW.md` (YAML front matte
 Markdown body → strict prompt template) with hot-reload and last-known-good fallback (SPEC §5, §6.2);
 polls an issue tracker, sorts candidates (priority 1–4 asc, then oldest `created_at`, then
 identifier; SPEC §8.2), and dispatches under global + per-state concurrency limits; creates
-sanitized per-issue workspaces with lifecycle hooks (SPEC §9); drives a Codex app-server subprocess
-over newline-delimited JSON-RPC through multi-turn sessions (SPEC §10); reconciles every tick
+sanitized per-issue workspaces with lifecycle hooks (SPEC §9); drives a selected Codex app-server
+or Claude Code stream-JSON subprocess through multi-turn sessions (SPEC §10); reconciles every tick
 (terminal → kill + clean workspace, unroutable → kill only, stalled → kill + retry; SPEC §8.5);
 retries with 1 s continuation delay after clean exits and `min(10s·2^(n−1), cap)` backoff after
 failures (SPEC §8.4); and exposes structured logs, a snapshot API, an optional HTTP API, and a
@@ -197,7 +197,18 @@ match exact; preserves configured order.
   `supportedTools`. Executes host-side with the bound settings snapshot — the child never sees the
   token.
 
-### 5.5 `codex` — app-server client (SPEC §10)
+### 5.5 coding-agent backends (SPEC §10)
+
+`Agent_runner` keeps workspace hooks and the multi-turn continuation loop backend-neutral.
+Its session variant selects Codex or Claude Code from `agent.backend`; normalized issue labels
+`agent:codex` and `agent:claude` override the default.
+
+Claude Code runs one `claude -p --output-format stream-json` subprocess per turn and resumes
+with the `system/init` session id. A workspace-local MCP bridge keeps provider credentials in
+maestro: Claude launches a credential-free stdio proxy, and the host process executes adapter
+tool callbacks over a local socket. Final `result` usage and cost remain in the update payload.
+
+#### Codex app-server client
 
 Wire protocol (ref-exact): newline-delimited JSON objects, no `jsonrpc` field; fixed client request
 ids `initialize`=1, `thread/start`=2, `turn/start`=3 (3 reused per turn); everything else we send is

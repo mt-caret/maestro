@@ -91,8 +91,16 @@ module Hooks = struct
 end
 
 module Agent = struct
+  module Backend = struct
+    type t =
+      | Codex
+      | Claude_code
+    [@@deriving sexp_of, equal]
+  end
+
   type t =
-    { max_concurrent_agents : int
+    { backend : Backend.t
+    ; max_concurrent_agents : int
     ; max_turns : int
     ; max_retry_backoff : Time_ns.Span.t
     ; max_concurrent_agents_by_state : int String.Map.t
@@ -108,6 +116,18 @@ module Codex = struct
     ; turn_sandbox_policy : Jsonaf.t option
     ; turn_timeout : Time_ns.Span.t
     ; read_timeout : Time_ns.Span.t
+    ; stall_timeout : Time_ns.Span.t option
+    }
+  [@@deriving sexp_of]
+end
+
+module Claude_code = struct
+  type t =
+    { command : string
+    ; permission_mode : string
+    ; allowed_tools : string list
+    ; mcp_config : Jsonaf.t option
+    ; turn_timeout : Time_ns.Span.t
     ; stall_timeout : Time_ns.Span.t option
     }
   [@@deriving sexp_of]
@@ -136,6 +156,7 @@ type t =
   ; hooks : Hooks.t
   ; agent : Agent.t
   ; codex : Codex.t
+  ; claude_code : Claude_code.t
   ; observability : Observability.t
   ; server : Server.t
   ; warnings : Error.t list
@@ -392,7 +413,17 @@ let parse_hooks fields =
 
 let parse_agent fields =
   let open Get in
-  let%map.Or_error max_concurrent_agents =
+  let%map.Or_error backend =
+    scalar
+      fields
+      ~section:"agent"
+      ~name:"backend"
+      ~default:Agent.Backend.Codex
+      ~of_jsonaf:(function
+      | `String "codex" -> Some Agent.Backend.Codex
+      | `String "claude_code" -> Some Agent.Backend.Claude_code
+      | _ -> None)
+  and max_concurrent_agents =
     scalar
       fields
       ~section:"agent"
@@ -439,7 +470,8 @@ let parse_agent fields =
            | `Ok limits -> limits, warnings
            | `Duplicate -> ignore_entry "duplicate state name"))
   in
-  ( { Agent.max_concurrent_agents
+  ( { Agent.backend
+    ; max_concurrent_agents
     ; max_turns
     ; max_retry_backoff
     ; max_concurrent_agents_by_state
@@ -520,6 +552,66 @@ let parse_codex fields =
   }
 ;;
 
+let parse_claude_code fields =
+  let open Get in
+  let%map.Or_error command =
+    scalar
+      fields
+      ~section:"claude_code"
+      ~name:"command"
+      ~default:"claude"
+      ~of_jsonaf:(fun value ->
+        Option.filter
+          (Option.join (string_opt value))
+          ~f:(fun command -> not (String.is_empty (String.strip command))))
+  and permission_mode =
+    scalar
+      fields
+      ~section:"claude_code"
+      ~name:"permission_mode"
+      ~default:"bypassPermissions"
+      ~of_jsonaf:(fun value ->
+        Option.filter
+          (Option.join (string_opt value))
+          ~f:(fun mode -> not (String.is_empty (String.strip mode))))
+  and allowed_tools =
+    scalar
+      fields
+      ~section:"claude_code"
+      ~name:"allowed_tools"
+      ~default:[]
+      ~of_jsonaf:string_list
+  and mcp_config =
+    match find fields "mcp_config" with
+    | None | Some `Null -> Ok None
+    | Some (`Object _ as config) -> Ok (Some config)
+    | Some _ -> Or_error.error_s [%message "claude_code.mcp_config is invalid"]
+  and turn_timeout =
+    scalar
+      fields
+      ~section:"claude_code"
+      ~name:"turn_timeout_ms"
+      ~default:(Time_ns.Span.of_int_ms 3_600_000)
+      ~of_jsonaf:positive_span_ms
+  and stall_timeout =
+    scalar
+      fields
+      ~section:"claude_code"
+      ~name:"stall_timeout_ms"
+      ~default:(Some (Time_ns.Span.of_int_ms 300_000))
+      ~of_jsonaf:(fun value ->
+        Option.map (int value) ~f:(fun ms ->
+          Option.some_if (ms > 0) (Time_ns.Span.of_int_ms ms)))
+  in
+  { Claude_code.command
+  ; permission_mode
+  ; allowed_tools
+  ; mcp_config
+  ; turn_timeout
+  ; stall_timeout
+  }
+;;
+
 let parse_observability fields =
   let open Get in
   let%map.Or_error dashboard_enabled =
@@ -565,6 +657,7 @@ let of_front_matter front_matter ~workflow_dir ~getenv =
    and hooks_fields = Get.section front_matter "hooks"
    and agent_fields = Get.section front_matter "agent"
    and codex_fields = Get.section front_matter "codex"
+   and claude_code_fields = Get.section front_matter "claude_code"
    and observability_fields = Get.section front_matter "observability"
    and server_fields = Get.section front_matter "server" in
    let%map.Or_error tracker = parse_tracker tracker_fields ~getenv
@@ -573,9 +666,20 @@ let of_front_matter front_matter ~workflow_dir ~getenv =
    and hooks = parse_hooks hooks_fields
    and agent, warnings = parse_agent agent_fields
    and codex = parse_codex codex_fields
+   and claude_code = parse_claude_code claude_code_fields
    and observability = parse_observability observability_fields
    and server = parse_server server_fields in
-   { tracker; polling; workspace; hooks; agent; codex; observability; server; warnings })
+   { tracker
+   ; polling
+   ; workspace
+   ; hooks
+   ; agent
+   ; codex
+   ; claude_code
+   ; observability
+   ; server
+   ; warnings
+   })
   |> Or_error.tag ~tag:"invalid_workflow_config"
 ;;
 
