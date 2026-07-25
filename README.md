@@ -21,7 +21,7 @@ The spec and its reference Elixir implementation are vendored as a git submodule
 > coding-agent's environment. It is a preview, not a supported product; run it only where
 > you would run an unsupervised coding agent.
 
-## Building
+## Development setup
 
 maestro requires the OxCaml toolchain (`bonsai_term`, which pins the compiler). Everything
 is captured in [`maestro.opam.locked`](maestro.opam.locked).
@@ -43,6 +43,39 @@ opam install . --locked --deps-only --with-test
 dune build
 dune runtest
 ```
+
+The `--deps-only` option prepares a development workspace. It installs the locked
+dependencies, including test dependencies, but it does not install the `maestro` command.
+
+## Installation
+
+To install Maestro and its locked dependencies in the active opam switch, run:
+
+```bash
+opam install . --locked
+```
+
+This is an opam-managed installation. Opam records the installed package and can remove or
+upgrade it later.
+
+You can also install a built checkout directly with Dune. For a user-global installation,
+run:
+
+```bash
+dune install --prefix "$HOME/.local" maestro
+```
+
+This installs the command at `~/.local/bin/maestro`. Add `~/.local/bin` to `PATH` if your
+shell does not already include it.
+
+An administrator can install the command for all users under a conventional system prefix:
+
+```bash
+dune install --prefix /usr/local maestro
+```
+
+The `/usr/local` command may require administrator privileges. CI and development checks
+should use a temporary prefix instead.
 
 ## Running
 
