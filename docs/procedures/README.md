@@ -16,4 +16,5 @@ Read the document that matches the current trigger:
 - Start or resume a pass: [`starting-a-pass.md`](starting-a-pass.md).
 - Record or reconcile progress: [`maintaining-the-workpad.md`](maintaining-the-workpad.md).
 - Resume work after human review: [`addressing-review-feedback.md`](addressing-review-feedback.md).
+- Author or review source with CR comments: [`cr-conversations.md`](cr-conversations.md).
 - Hand completed work to a reviewer: [`handing-off-a-pr.md`](handing-off-a-pr.md).
