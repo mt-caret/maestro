@@ -10,15 +10,18 @@ authors: "Masayuki Takeda"
 license: "Apache-2.0"
 depends: [
   "abstract_algebra" {= "v0.18~preview.130.106+341"}
+  "am_running_how_js" {= "v0.18~preview.130.106+341"}
   "angstrom" {= "0.16.1"}
   "astring" {= "0.8.5"}
   "async" {= "v0.18~preview.130.106+341"}
-  "async_js" {= "v0.18~preview.130.106+341" & with-test}
+  "async_durable" {= "v0.18~preview.130.106+341"}
+  "async_js" {= "v0.18~preview.130.106+341"}
   "async_kernel" {= "v0.18~preview.130.106+341"}
   "async_log" {= "v0.18~preview.130.106+341"}
   "async_rpc_kernel" {= "v0.18~preview.130.106+341"}
   "async_ssl" {= "v0.18~preview.130.106+341"}
   "async_unix" {= "v0.18~preview.130.106+341"}
+  "babel" {= "v0.18~preview.130.106+341"}
   "base" {= "v0.18~preview.130.106+341"}
   "base-bigarray" {= "base"}
   "base-domains" {= "base"}
@@ -39,7 +42,10 @@ depends: [
   "bonsai_term_components" {= "v0.18~preview.130.106+341" & with-test}
   "bonsai_term_test" {= "v0.18~preview.130.106+341" & with-test}
   "bonsai_test" {= "v0.18~preview.130.106+341" & with-test}
+  "bonsai_web" {= "v0.18~preview.130.106+341"}
+  "bonsai_web_test" {= "v0.18~preview.130.106+341" & with-test}
   "bos" {= "0.3.0"}
+  "browser" {= "v0.18~preview.130.106+341"}
   "camlp-streams" {= "5.0.1"}
   "capitalization" {= "v0.18~preview.130.106+341"}
   "capsule" {= "v0.18~preview.130.106+341"}
@@ -75,7 +81,10 @@ depends: [
   "expectable" {= "v0.18~preview.130.106+341" & with-test}
   "expectree" {= "v0.18~preview.130.106+341" & with-test}
   "faraday" {= "0.8.2"}
+  "fastdom" {= "v0.18~preview.130.106+341"}
   "fieldslib" {= "v0.18~preview.130.106+341"}
+  "file_path" {= "v0.18~preview.130.106+341"}
+  "filesystem" {= "v0.18~preview.130.106+341"}
   "fix" {= "20250919"}
   "flexible_sexp" {= "v0.18~preview.130.106+341"}
   "float_array" {= "v0.18~preview.130.106+341"}
@@ -84,6 +93,7 @@ depends: [
   "gen" {= "1.1"}
   "gen_js_api" {= "1.1.2+ox"}
   "http" {= "6.2.1"}
+  "incr_dom" {= "v0.18~preview.130.106+341"}
   "incr_map" {= "v0.18~preview.130.106+341"}
   "incr_select" {= "v0.18~preview.130.106+341"}
   "incremental" {= "v0.18~preview.130.106+341"}
@@ -127,6 +137,7 @@ depends: [
   "ocamlfind" {= "1.9.8+ox"}
   "ocamlformat" {= "0.26.2+ox2"}
   "ocamlformat-lib" {= "0.26.2+ox2"}
+  "ocamlgraph" {= "2.0.0"}
   "ocp-indent" {= "1.9.0"}
   "odoc-parser" {= "3.2.1"}
   "ojs" {= "1.1.2+ox"}
@@ -205,8 +216,9 @@ depends: [
   "parsexp" {= "v0.18~preview.130.106+341"}
   "patdiff" {= "v0.18~preview.130.106+341" & with-test}
   "patience_diff" {= "v0.18~preview.130.106+341" & with-test}
-  "pending_or_error" {= "v0.18~preview.130.106+341" & with-test}
+  "pending_or_error" {= "v0.18~preview.130.106+341"}
   "pipe_with_writer_error" {= "v0.18~preview.130.106+341"}
+  "polling_state_rpc" {= "v0.18~preview.130.106+341"}
   "portable" {= "v0.18~preview.130.106+341"}
   "portable_lockfree_htbl" {= "v0.18~preview.130.106+341"}
   "ppx_array_base" {= "v0.18~preview.130.106+341"}
@@ -217,6 +229,7 @@ depends: [
   "ppx_box" {= "v0.18~preview.130.106+341"}
   "ppx_builtin" {= "v0.18~preview.130.106+341"}
   "ppx_compare" {= "v0.18~preview.130.106+341"}
+  "ppx_css" {= "v0.18~preview.130.106+341"}
   "ppx_custom_printf" {= "v0.18~preview.130.106+341"}
   "ppx_debug_assert" {= "v0.18~preview.130.106+341"}
   "ppx_delta_types" {= "v0.18~preview.130.106+341" & with-test}
@@ -233,6 +246,7 @@ depends: [
   "ppx_hash" {= "v0.18~preview.130.106+341"}
   "ppx_helpers" {= "v0.18~preview.130.106+341"}
   "ppx_here" {= "v0.18~preview.130.106+341"}
+  "ppx_html" {= "v0.18~preview.130.106+341" & with-test}
   "ppx_ignore_instrumentation" {= "v0.18~preview.130.106+341"}
   "ppx_inline_test" {= "v0.18~preview.130.106+341"}
   "ppx_int63_literal" {= "v0.18~preview.130.106+341"}
@@ -266,6 +280,7 @@ depends: [
   "ppxlib" {= "0.33.0+ox2"}
   "ppxlib_ast" {= "0.33.0+ox2"}
   "ppxlib_jane" {= "v0.18~preview.130.106+341"}
+  "promise_jsoo" {= "0.4.3"}
   "protocol_version_header" {= "v0.18~preview.130.106+341"}
   "re" {= "1.14.0+ox"}
   "react" {= "1.2.2" & with-test}
@@ -287,11 +302,14 @@ depends: [
   "streamable" {= "v0.18~preview.130.106+341"}
   "string_dict" {= "v0.18~preview.130.106+341"}
   "stringext" {= "1.6.0"}
+  "testable_timeout" {= "v0.18~preview.130.106+341"}
   "textutils" {= "v0.18~preview.130.106+341"}
   "textutils_kernel" {= "v0.18~preview.130.106+341"}
+  "tilde_f" {= "v0.18~preview.130.106+341"}
   "time_now" {= "v0.18~preview.130.106+341"}
   "tmux" {= "v0.18~preview.130.106+341" & with-test}
   "topkg" {= "1.1.1+ox"}
+  "toplayer" {= "v0.18~preview.130.106+341"}
   "typerep" {= "v0.18~preview.130.106+341"}
   "tyxml" {= "4.6.0"}
   "uchar" {= "0.0.2"}
@@ -307,6 +325,7 @@ depends: [
   "uutf" {= "1.0.4+ox"}
   "variantslib" {= "v0.18~preview.130.106+341"}
   "vec" {= "v0.18~preview.130.106+341" & with-test}
+  "versioned_polling_state_rpc" {= "v0.18~preview.130.106+341"}
   "virtual_dom" {= "v0.18~preview.130.106+341"}
   "yaml" {= "3.2.0"}
   "yojson" {= "2.2.2+ox"}
